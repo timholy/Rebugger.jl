@@ -3,7 +3,7 @@ module Rebugger
 using REPL
 using REPL.LineEdit
 using Revise
-using Revise: get_signature, signature_names, funcdef_body
+using Revise: get_signature, signature_names, funcdef_body, get_def
 
 # Organization:
 
@@ -73,39 +73,67 @@ function KeywordArg(ex::Expr)
     KeywordArg(ex.args[1], ex.args[2])
 end
 
-function capture_stacktrace(command::Expr)
-    # Eval the command, capture the backtrace and do any processing
-    # Question: what if the same method appears at multiple slots?
-    # For now, check for this and throw an error that suggests manual stepping.
-    capture_stacktrace(stacktrace) do
-        Core.eval(command)
+function capture_stacktrace(mod::Module, command::Expr)
+    local trace
+    errored = true
+    try
+        eval_noinfo(mod, command)
+        errored = false
+    catch
+        trace = stacktrace(catch_backtrace())
     end
-    # Set up stack and error_stack
-    populate_replinput(lastitemonstack)
+    errored || error("$command did not throw an error")
+    # Truncate the stacktrace at eval_noinfo & check whether the same method appears in multiple slots
+    calledmethods = Method[]
+    for (i, t) in enumerate(trace)
+        if t.func == :eval_noinfo
+            resize!(trace, i-1)
+            break
+        end
+        t.func ∈ notrace && continue
+        startswith(String(t.func), '#') && continue # skip generated methods
+        if !has_no_linfo(t)
+            m = t.linfo.def
+            @assert m isa Method
+            push!(calledmethods, m)
+        end
+    end
+    Base.show_backtrace(stderr, trace)
+    print(stderr, '\n')
+    length(unique(calledmethods)) == length(calledmethods) || @error "the same method appeared twice, not supported. Try stepping into the command."
+    capture_stacktrace!(calledmethods) do
+        eval_noinfo(mod, command)
+    end
+    # # Set up stack and error_stack
+    # populate_replinput(lastitemonstack)  # move this elsewhere
 end
+capture_stacktrace(command::Expr) = capture_stacktrace(Main, command)
 
-capture_stacktrace(f::Function, stacktrace::Vector) = capture_stacktrace!(f, copy(stacktrace))
-
-function capture_stacktrace!(f::Function, stacktrace::Vector)
-    while !isempty(stacktrace) && has_no_linfo(stacktrace[end])
-        pop!(stacktrace)
-    end
-    if isempty(stacktrace)
+function capture_stacktrace!(f::Function, calledmethods::Vector)
+    if isempty(calledmethods)
         # We've finished modifying all the methods, time to run the command
         try
             f()
+            @warn "traced method did not throw an error"
         catch
         end
         return
     end
-    method = get_method(stacktrace[end])
+    method = calledmethods[end]
     def = get_def(method)
-    # Now modify `def` to insert into slot `length(stacktrace)` (don't throw an error)
-    # and eval it in the appropriate module
-    pop!(stacktrace)
-    capture_stacktrace!(f, stacktrace)
+    if def != nothing
+        # Now modify `def` to insert into slot `length(calledmethods)` (don't throw an error)
+        # and eval it in the appropriate module
+        reporting_method(method, def, length(calledmethods); trunc=false)
+    end
+    # Recurse up the stack until we get to the top...
+    pop!(calledmethods)
+    capture_stacktrace!(f, calledmethods)
+    # ...after which it will call the erroring function and come back here.
     # Having come back, restore the original definition
-    eval_noinfo(def)
+    if def != nothing
+        eval_noinfo(method.module, def)
+    end
 end
 
 # function capture_and_err(method::Method, command)
@@ -162,7 +190,7 @@ function stepin(s)
     end
     empty!(s)
     f, args = record[]
-    method = which(f, typesof(args))
+    method = which(f, Base.typesof(args))
     def = get_def(method)
     # Now modify `def` to push! onto stack and throw a StopException
     # and eval it in the appropriate module
@@ -175,7 +203,7 @@ function stepin(s)
 end
 
 function reporting_method(method, def, index; trunc::Bool=false)
-    sigr, body = get_signature(def), funcdef_body(def)
+    sigr, body = get_signature(def), unquote(funcdef_body(def))
     if sigr == nothing
         @warn "skipping capture: could not extract signature from $def"
         return nothing
@@ -206,5 +234,24 @@ safe_deepcopy() = ()
 
 _deepcopy(a) = deepcopy(a)
 _deepcopy(a::Module) = a
+
+has_no_linfo(sf::Base.StackFrame) = !isa(sf.linfo, Core.MethodInstance)
+
+
+# Use to re-evaluate an expression without leaving "breadcrumbs" about where
+# the eval is coming from. This is used below to prevent the re-evaluaton of an
+# original method from being attributed to Revise itself in future backtraces.
+eval_noinfo(mod::Module, ex::Expr) = ccall(:jl_toplevel_eval, Any, (Any, Any), mod, ex)
+eval_noinfo(mod::Module, rex::Revise.RelocatableExpr) = eval_noinfo(mod, convert(Expr, rex))
+
+function unquote(ex::Expr)
+    if ex.head == :quote
+        return Expr(:block, ex.args...)
+    end
+    ex
+end
+unquote(rex::Revise.RelocatableExpr) = unquote(convert(Expr, rex))
+
+const notrace = (:error, :throw)
 
 end # module

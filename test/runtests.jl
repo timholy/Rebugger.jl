@@ -2,14 +2,7 @@ using Rebugger
 using Rebugger: StopException, KeywordArg
 using Test
 
-module RebuggerTesting
-
-const cbdata1 = Ref{Any}(nothing)
-const cbdata2 = Ref{Any}(nothing)
-
-function foo end
-
-end
+Revise.track("testmodule.jl")   # so the source code here gets loaded
 
 @testset "Rebugger" begin
     @testset "Buffer capture and insertion" begin
@@ -77,5 +70,17 @@ end
         Rebugger.reporting_method(m, def, 1; trunc=false)
         @test f([8,9]) == [9,9]
         @test Rebugger.stack[1][2:end] == ((:x,), ([8,9],))  # check that it's the original value
+    end
+
+    @testset "Capture stacktrace" begin
+        empty!(Rebugger.stack)
+        Rebugger.capture_stacktrace(RebuggerTesting, :(snoop0()))
+        @test Rebugger.stack[end][2:3] == ((), ())
+        @test Rebugger.stack[end-1][2:3] == ((:word,), ("Spy",))
+        @test Rebugger.stack[end-2][2:3] == ((:word1, :word2), ("Spy", "on"))
+        @test Rebugger.stack[end-3][2:3] == ((:word1, :word2, :word3, :adv, :T), ("Spy", "on", "arguments", "simply", String))
+        empty!(Rebugger.stack)
+        @test_throws ErrorException("oops") RebuggerTesting.snoop0()
+        @test isempty(Rebugger.stack)
     end
 end
