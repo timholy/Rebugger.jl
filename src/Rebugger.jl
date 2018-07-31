@@ -73,6 +73,8 @@ function KeywordArg(ex::Expr)
     KeywordArg(ex.args[1], ex.args[2])
 end
 
+### Stacktraces
+
 function capture_stacktrace(mod::Module, command::Expr)
     local trace
     errored = true
@@ -101,7 +103,7 @@ function capture_stacktrace(mod::Module, command::Expr)
     Base.show_backtrace(stderr, trace)
     print(stderr, '\n')
     length(unique(calledmethods)) == length(calledmethods) || @error "the same method appeared twice, not supported. Try stepping into the command."
-    capture_stacktrace!(calledmethods) do
+    capture_stacktrace!(reverse!(calledmethods)) do
         eval_noinfo(mod, command)
     end
     # # Set up stack and error_stack
@@ -136,21 +138,13 @@ function capture_stacktrace!(f::Function, calledmethods::Vector)
     end
 end
 
-# function capture_and_err(method::Method, command)
-#     def = get_def(method)
-#     # Modify `def` to push! vars onto the end of stack and then throw a StopException
-#     try
-#         Core.eval(mod, command)
-#     catch StopException
-#     end
-#     eval_noinfo(def)
-# end
+### Stepping
 
-# This captures from the caller side
-function insert_capture!(s)  # for testing, needs to work on a normal IO object
+# This captures from the caller side, use reporting_method for capturing from the callee
+function insert_capture!(s::IO)  # for testing, needs to work on a normal IO object
     start = position(s)
     str = LineEdit.content(s)
-    expr, stop = Meta.parse(str, start; raise=false)
+    expr, stop = Meta.parse(str, start+1; raise=false)
     (isa(expr, Expr) && expr.head == :call) || throw(Meta.ParseError("Point must be at a call expression, got $expr"))
     fname, args = expr.args[1], expr.args[2:end]
     if length(args) >= 1 && isa(args[1], Expr) && args[1].head == :parameters
@@ -183,24 +177,35 @@ end
 
 function stepin(s)
     insert_capture!(s)
-    # Now capture arg
+    expr = Meta.parse(LineEdit.content(s))
+    # Capture calling arguments
     try
-        Core.eval(Main, stufffroms)  # this should already start with an @eval mod ...
-    catch StopException
+        Core.eval(Main, expr)  # this should already start with an @eval mod ...
+    catch err
+        isa(err, StopException) || rethrow(err)
     end
-    empty!(s)
     f, args = record[]
-    method = which(f, Base.typesof(args))
+    method = which(f, Base.typesof(args...))
     def = get_def(method)
-    # Now modify `def` to push! onto stack and throw a StopException
-    # and eval it in the appropriate module
-    try
-        f(args...)
-    catch StopException
+    if def == nothing
+        @warn "unable to step into $f"
+        return nothing
     end
-    eval_noinfo(def)
-    populate_replinput(lastitemonstack)
+    # Modify callee (`def`) to push! all inputs onto stack and throw a StopException
+    index = length(stack)+1
+    reporting_method(method, def, index; trunc=true)
+    try
+        Base.invokelatest(f, args...)
+    catch err
+        isa(err, StopException) || rethrow(err)
+    end
+    # Now we have the full inputs. Restore the original method
+    eval_noinfo(method.module, def)
+    # Dump the method body to the REPL
+    generate_let_command(s, index)
 end
+
+### Shared methods
 
 function reporting_method(method, def, index; trunc::Bool=false)
     sigr, body = get_signature(def), unquote(funcdef_body(def))
@@ -227,6 +232,18 @@ function reporting_method(method, def, index; trunc::Bool=false)
     end
     mod = method.module
     Core.eval(mod, capture_function)
+end
+
+function generate_let_command(s, index)
+    method, varnames, varvals = stack[index]
+    argstring = '(' * join(varnames, ", ") * ')'
+    body = convert(Expr, Revise.striplines!(deepcopy(funcdef_body(get_def(method)))))
+    letcommand = """
+        @eval $(method.module) let $argstring = Main.Rebugger.stack[$index][3]
+        $body
+        end"""
+    LineEdit.edit_clear(s)
+    LineEdit.edit_insert(s, letcommand)
 end
 
 safe_deepcopy(a, args...) = (_deepcopy(a), safe_deepcopy(args...)...)
