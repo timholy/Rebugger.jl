@@ -48,4 +48,34 @@ end
         """
         @test_throws ErrorException("not caught") run_insertion(str, "foo")
     end
+
+    @testset "Reporting methods" begin
+        def = quote
+            function complexargs(x::A, y=1, str="1.0"; kw1=Float64, kw2=7) where A<:AbstractArray{T} where T
+                return (x .+ y, parse(kw1, str), kw2)
+            end
+        end
+        f = Core.eval(RebuggerTesting, def)
+        @test f([8,9]) == ([9,10], 1.0, 7)
+        m = collect(methods(f))[end]
+        Rebugger.reporting_method(m, def, 1; trunc=false)
+        @test f([8,9], 2, "13"; kw1=Int, kw2=0) == ([10,11], 13, 0)
+        @test Rebugger.stack[1][2:end] == ((:x, :y, :str, :kw1, :kw2, :A, :T), ([8,9], 2, "13", Int, 0, Vector{Int}, Int))
+        @test f([8,9]) == ([9,10], 1.0, 7)
+        @test Rebugger.stack[1][2:end] == ((:x, :y, :str, :kw1, :kw2, :A, :T), ([8,9], 1, "1.0", Float64, 7, Vector{Int}, Int))
+        empty!(Rebugger.stack)
+        m = collect(methods(f))[end]
+        Rebugger.reporting_method(m, def, 1; trunc=true)
+        @test_throws StopException f([8,9], 2, "13"; kw1=Int, kw2=0)
+
+        def = quote
+            modifies!(x) = (x[1] += 1; x)
+        end
+        f = Core.eval(RebuggerTesting, def)
+        @test f([8,9]) == [9,9]
+        m = collect(methods(f))[end]
+        Rebugger.reporting_method(m, def, 1; trunc=false)
+        @test f([8,9]) == [9,9]
+        @test Rebugger.stack[1][2:end] == ((:x,), ([8,9],))  # check that it's the original value
+    end
 end

@@ -185,17 +185,26 @@ function reporting_method(method, def, index; trunc::Bool=false)
     kwrepro = [:($name=$name) for name in kwnames]
     allnames = (argnames..., kwnames..., paramnames...)
     qallnames = QuoteNode.(allnames)
-    stashexpr = :(Main.Rebugger.stack[$index] = ($method, ($(qallnames...),), ($(allnames...),)))
+    stashexpr = :(Main.Rebugger.stack[$index] = ($method, ($(qallnames...),), Main.Rebugger.safe_deepcopy($(allnames...))))
     capture_body = trunc ? quote
         $stashexpr
-        throw(StopException())
+        throw(Main.Rebugger.StopException())
     end : quote
         $stashexpr
         $body
     end
     capture_function = Expr(:function, sig, capture_body)
+    if index > length(stack)
+        resize!(stack, index)
+    end
     mod = method.module
     Core.eval(mod, capture_function)
 end
+
+safe_deepcopy(a, args...) = (_deepcopy(a), safe_deepcopy(args...)...)
+safe_deepcopy() = ()
+
+_deepcopy(a) = deepcopy(a)
+_deepcopy(a::Module) = a
 
 end # module
