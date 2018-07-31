@@ -1,0 +1,8 @@
+name = "Rebugger"
+uuid = "6bca5d8e-94aa-11e8-25be-f7463cf244ff"
+authors = ["Tim Holy <tim.holy@gmail.com>"]
+version = "0.1.0"
+
+[deps]
+REPL = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
+Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
