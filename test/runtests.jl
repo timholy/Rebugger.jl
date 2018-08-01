@@ -111,7 +111,14 @@ end
 
     @testset "Capture stacktrace" begin
         empty!(Rebugger.stack)
-        Rebugger.capture_stacktrace(RebuggerTesting, :(snoop0()))
+        mktemp() do path, iostacktrace
+            redirect_stderr(iostacktrace) do
+                Rebugger.capture_stacktrace(RebuggerTesting, :(snoop0()))
+            end
+            flush(iostacktrace)
+            str = read(path, String)
+            @test occursin("snoop3", str)
+        end
         @test Rebugger.stack[1][2:3] == ((), ())
         @test Rebugger.stack[2][2:3] == ((:word,), ("Spy",))
         @test Rebugger.stack[3][2:3] == ((:word1, :word2), ("Spy", "on"))
