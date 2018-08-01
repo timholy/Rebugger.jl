@@ -75,6 +75,17 @@ end
 
 ### Stacktraces
 
+"""
+    capture_stacktrace(mod, command)
+
+Execute `command` in module `mod`. `command` must throw an error.
+Then instrument the methods in the stacktrace so that their input
+variables are stored in `Rebugger.stack`.
+After storing the inputs, restore the original methods.
+
+Since this requires two `eval`s of `command`, usage should be limited to
+deterministic expressions that always result in the same call chain.
+"""
 function capture_stacktrace(mod::Module, command::Expr)
     local trace
     errored = true
@@ -126,7 +137,7 @@ function capture_stacktrace!(f::Function, calledmethods::Vector)
     if def != nothing
         # Now modify `def` to insert into slot `length(calledmethods)` (don't throw an error)
         # and eval it in the appropriate module
-        reporting_method(method, def, length(calledmethods); trunc=false)
+        method_capture_from_callee(method, def, length(calledmethods); trunc=false)
     end
     # Recurse up the stack until we get to the top...
     pop!(calledmethods)
@@ -140,8 +151,35 @@ end
 
 ### Stepping
 
-# This captures from the caller side, use reporting_method for capturing from the callee
-function insert_capture!(s::IO)  # for testing, needs to work on a normal IO object
+"""
+    capture_from_caller!(s::IO)
+
+Given a buffer `s` representing a string and "point" (the seek position) set at a call expression,
+replace the call with one that stashes the function and arguments of the call.
+
+For example, if `s` has contents
+
+    <some code>
+    if x > 0.5
+        ^fcomplex(x)
+        <more code>
+
+where in the above `^` indicates `position(s)` ("point"), rewrite this as
+
+    <some code>
+    if x > 0.5
+        Rebugger.record[] = (fcomplex, (x,))
+        throw(Rebugger.StopException())
+        <more code>
+
+Consequently, if this is `eval`ed and execution reaches "^", it causes the arguments
+of the call to be stored in `Rebugger.record`.
+
+This does the buffer-preparation for *caller* capture.
+For *callee* capture, see [`method_capture_from_callee`](@ref),
+and [`stepin!`](@ref) which puts these two together.
+"""
+function capture_from_caller!(s::IO)  # f"or testing, needs to work on a normal IO object
     start = position(s)
     str = LineEdit.content(s)
     expr, stop = Meta.parse(str, start+1; raise=false)
@@ -164,42 +202,63 @@ function insert_capture!(s::IO)  # for testing, needs to work on a normal IO obj
     return s
 end
 
-# Clever but probably useless stuff
-# methsym = gensym("whichmethod")
-# qexpr = QuoteNode(expr)
-# stepexpr = quote
-#     $methsym = Main.InteractiveUtils.@which($expr)
-#     Main.Rebugger.varnames[] = Main.Rebugger.capture($methsym, $qexpr; on_err=false, params=true)
-#     error("stop")
-# end
-# methstr = string(methsym)
-# LineEdit.edit_splice!(s, start=>stop-1, replace(string(stepexpr), string(methsym)=>"\$(Symbol(\"$(methstr)\"))")*'\n')
+"""
+    stepin!(s::IO, index=length(Rebugger.stack)+1)
 
-function stepin(s)
-    insert_capture!(s)
-    expr = Meta.parse(LineEdit.content(s))
+Given a buffer `s` representing a string and "point" (the seek position) set at a call expression,
+replace the contents of the buffer with a `let` expression that wraps the *body* of the callee.
+
+For example, if `s` has contents
+
+    <some code>
+    if x > 0.5
+        ^fcomplex(x)
+        <more code>
+
+where in the above `^` indicates `position(s)` ("point"), and if the definition of `fcomplex` is
+
+    function fcomplex(x::A, y=1, z=""; kw1=3.2) where A<:AbstractArray{T} where T
+        <body>
+    end
+
+rewrite `s` so that its contents are
+
+    @eval ModuleOf_fcomplex let (x, y, z, kw1, A, T) = Rebugger.stack[index][3]
+        <body>
+    end
+
+where `Rebugger.stack[index][3]` has been pre-loaded with the values that would have been
+set when you called `fcomplex(x)` in `s` above.
+This line can be edited and `eval`ed at the REPL to analyze or improve `fcomplex`,
+or can be used for further `stepin!` calls.
+"""
+function stepin!(s::IO, index=length(stack)+1)
     # Capture calling arguments
+    capture_from_caller!(s)
+    expr = Meta.parse(LineEdit.content(s))
     try
         Core.eval(Main, expr)  # this should already start with an @eval mod ...
     catch err
         isa(err, StopException) || rethrow(err)
     end
     f, args = record[]
+    # We now know the function and argument-values and can thus determine the callee.
     method = which(f, Base.typesof(args...))
     def = get_def(method)
     if def == nothing
         @warn "unable to step into $f"
         return nothing
     end
-    # Modify callee (`def`) to push! all inputs onto stack and throw a StopException
-    index = length(stack)+1
-    reporting_method(method, def, index; trunc=true)
+    # To ensure the callee's body is evaluatable, we need to grab any additional variables
+    # (default arguments, keyword arguments, and type parameters) that get set by the callee.
+    # Redefine callee (`def`) to insert all inputs onto stack and throw a StopException
+    method_capture_from_callee(method, def, index; trunc=true)
     try
         Base.invokelatest(f, args...)
     catch err
         isa(err, StopException) || rethrow(err)
     end
-    # Now we have the full inputs. Restore the original method
+    # Now we have the full inputs. Restore the original method.
     eval_noinfo(method.module, def)
     # Dump the method body to the REPL
     generate_let_command(s, index)
@@ -207,7 +266,28 @@ end
 
 ### Shared methods
 
-function reporting_method(method, def, index; trunc::Bool=false)
+"""
+    method_capture_from_callee(method, def, index; trunc::Bool=false)
+
+Redefine `method` so that it stores its inputs in `Rebugger.stack[index]`.
+For a method
+
+    function fcomplex(x::A, y=1, z=""; kw1=3.2) where A<:AbstractArray{T} where T
+        <body>
+    end
+
+generate a new method
+
+    function fcomplex(x::A, y=1, z=""; kw1=3.2) where A<:AbstractArray{T} where T
+        Rebugger.stack[index] = (fcomplex, (:x, :y, :z, :kw1, :A, :T), deepcopy((x, y, z, kw1, A, T)))
+        <body>
+    end
+
+or, if `trunc` is true, replace the body with `throw(StopException())`.
+
+`def` is the (unlowered) expression that defines `fcomplex`.
+"""
+function method_capture_from_callee(method, def, index; trunc::Bool=false)
     sigr, body = get_signature(def), unquote(funcdef_body(def))
     if sigr == nothing
         @warn "skipping capture: could not extract signature from $def"
@@ -257,7 +337,7 @@ has_no_linfo(sf::Base.StackFrame) = !isa(sf.linfo, Core.MethodInstance)
 
 # Use to re-evaluate an expression without leaving "breadcrumbs" about where
 # the eval is coming from. This is used below to prevent the re-evaluaton of an
-# original method from being attributed to Revise itself in future backtraces.
+# original method from being attributed to Rebugger itself in future backtraces.
 eval_noinfo(mod::Module, ex::Expr) = ccall(:jl_toplevel_eval, Any, (Any, Any), mod, ex)
 eval_noinfo(mod::Module, rex::Revise.RelocatableExpr) = eval_noinfo(mod, convert(Expr, rex))
 

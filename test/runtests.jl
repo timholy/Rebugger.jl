@@ -7,7 +7,7 @@ if !isdefined(Main, :RebuggerTesting)
 end
 
 @testset "Rebugger" begin
-    @testset "Reporting methods" begin
+    @testset "Callee variable capture" begin
         def = quote
             function complexargs(x::A, y=1, str="1.0"; kw1=Float64, kw2=7) where A<:AbstractArray{T} where T
                 return (x .+ y, parse(kw1, str), kw2)
@@ -16,14 +16,14 @@ end
         f = Core.eval(RebuggerTesting, def)
         @test f([8,9]) == ([9,10], 1.0, 7)
         m = collect(methods(f))[end]
-        Rebugger.reporting_method(m, def, 1; trunc=false)
+        Rebugger.method_capture_from_callee(m, def, 1; trunc=false)
         @test f([8,9], 2, "13"; kw1=Int, kw2=0) == ([10,11], 13, 0)
         @test Rebugger.stack[1][2:end] == ((:x, :y, :str, :kw1, :kw2, :A, :T), ([8,9], 2, "13", Int, 0, Vector{Int}, Int))
         @test f([8,9]) == ([9,10], 1.0, 7)
         @test Rebugger.stack[1][2:end] == ((:x, :y, :str, :kw1, :kw2, :A, :T), ([8,9], 1, "1.0", Float64, 7, Vector{Int}, Int))
         empty!(Rebugger.stack)
         m = collect(methods(f))[end]
-        Rebugger.reporting_method(m, def, 1; trunc=true)
+        Rebugger.method_capture_from_callee(m, def, 1; trunc=true)
         @test_throws StopException f([8,9], 2, "13"; kw1=Int, kw2=0)
 
         def = quote
@@ -32,19 +32,19 @@ end
         f = Core.eval(RebuggerTesting, def)
         @test f([8,9]) == [9,9]
         m = collect(methods(f))[end]
-        Rebugger.reporting_method(m, def, 1; trunc=false)
+        Rebugger.method_capture_from_callee(m, def, 1; trunc=false)
         @test f([8,9]) == [9,9]
         @test Rebugger.stack[1][2:end] == ((:x,), ([8,9],))  # check that it's the original value
     end
 
-    @testset "Buffer capture and insertion" begin
+    @testset "Caller buffer capture and insertion" begin
         function run_insertion(str, atstr)
             RebuggerTesting.cbdata1[] = RebuggerTesting.cbdata2[] = Rebugger.record[] = nothing
             io = IOBuffer()
             idx = findfirst(atstr, str)
             print(io, str)
             seek(io, first(idx)-1)
-            Rebugger.insert_capture!(io)
+            Rebugger.capture_from_caller!(io)
             str′ = String(take!(io))
             expr′ = Meta.parse(str′)
             try
@@ -80,7 +80,7 @@ end
             idx = findfirst(atstr, str)
             print(io, str)
             seek(io, first(idx)-1)
-            Rebugger.stepin(io)
+            Rebugger.stepin!(io)
             String(take!(io))
         end
 
@@ -93,16 +93,14 @@ end
             snoop1("Spy")
         end
         end"""
-        nextcall = "snoop1"
-        cmd = run_stepin(cmd, nextcall)
+        cmd = run_stepin(cmd, "snoop1")
         @test cmd == """
         @eval Main.RebuggerTesting let (word) = Main.Rebugger.stack[2][3]
         begin
             snoop2(word, "on")
         end
         end"""
-        nextcall = "snoop2"
-        cmd = run_stepin(cmd, nextcall)
+        cmd = run_stepin(cmd, "snoop2")
         @test cmd == """
         @eval Main.RebuggerTesting let (word1, word2) = Main.Rebugger.stack[3][3]
         begin
