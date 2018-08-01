@@ -221,6 +221,7 @@ function stepin!(s)
     ## Stage 4: clean up and insert the new method body into the REPL
     # Restore the original method
     eval_noinfo(method.module, def)
+    show_current_stackpos(s, index, -1)
     # Dump the method body to the REPL
     generate_let_command(s, index)
     return nothing
@@ -236,7 +237,7 @@ function stepup!(s)
     index, hasid = get_stack_index(callstring)
     if hasid && index > 1
         letcommand = stackcmd[index-1]
-        LineEdit.edit_clear(s)
+        show_current_stackpos(s, index-1, 1)
         LineEdit.edit_insert(s, letcommand)
     end
     return nothing
@@ -247,13 +248,14 @@ function stepdown!(s)
     index, hasid = get_stack_index(callstring)
     if hasid && index < length(stack)
         letcommand = stackcmd[index+1]
-        LineEdit.edit_clear(s)
+        show_current_stackpos(s, index+1, -1)
         LineEdit.edit_insert(s, letcommand)
     end
     return nothing
 end
 
 function capture_stacktrace(s)
+    push!(msgs, "stacktrace")
     resizestack(0)
     cmdstring = LineEdit.content(s)
     expr = Meta.parse(cmdstring)
@@ -261,7 +263,7 @@ function capture_stacktrace(s)
     for index = 1:length(stack)
         stackcmd[index] = generate_let_command(index)
     end
-    LineEdit.edit_clear(s)
+    show_current_stackpos(s, length(stackcmd))
     LineEdit.edit_insert(s, stackcmd[end])
     return nothing
 end
@@ -331,6 +333,21 @@ function generate_let_command(s, index)
     stackcmd[index] = letcommand
     LineEdit.edit_clear(s)
     LineEdit.edit_insert(s, letcommand)
+end
+
+function show_current_stackpos(s, index, bonus=0)
+    # Show stacktrace
+    LineEdit.edit_clear(s)
+    out_stream = s.current_mode.repl.t.out_stream
+    print(out_stream, "\r\u1b[K")     # clear the line
+    for _ in 1:index+bonus
+        print(out_stream, "\r\u1b[K\u1b[A")   # move up while clearing line
+    end
+    for i = 1:index
+        stackitem = stack[i]
+        printstyled(out_stream, stackitem[1], '\n'; color=:light_magenta)
+    end
+    return nothing
 end
 
 ### Key bindings
