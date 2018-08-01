@@ -13,14 +13,7 @@ using Revise: ExLike, get_signature, funcdef_body, get_def
 
 ## Populate REPL with let block of method source
 
-## REPL commands:
-## F11 (^[[23~): step into expr at point   # Note: on konsole, F11 means fullscreen. Turn off in Settings->Configure Shortcuts
-## Shift-F11 (^[[23;2~): step out
-## Ctrl-F11 (^[[23;5~): step down stacktrace (avoids the need to place point)
-## F5 (^[[15~): reinsert the last rebugger command. This allows extension of the stack.
-## F9 (^[[20~): capture a stacktrace and start at the bottom
-## "\em" (meta-m): create REPL line that populates Main with arguments to current method
-## "\eS" (meta-S): save version at REPL to file? (a little dangerous, perhaps make it configurable as to whether this is on)
+
 
 ## Old:
 ## F11: step into expr at point (^[[23~)  # Note: on konsole, F11 means fullscreen. Turn off in Settings->Configure Shortcuts
@@ -335,6 +328,29 @@ function generate_let_command(s, index)
         end"""
     LineEdit.edit_clear(s)
     LineEdit.edit_insert(s, letcommand)
+end
+
+### Key bindings
+
+## REPL commands:
+## F11 (^[[23~): step into expr at point   # Note: on konsole, F11 means fullscreen.
+## Shift-F11 (^[[23;2~): step out
+## Ctrl-F11 (^[[23;5~): step down stacktrace (avoids the need to place point)
+## F5 (^[[15~): reinsert the last rebugger command. This allows extension of the stack.
+## F9 (^[[20~): capture a stacktrace and start at the bottom
+## "\em" (meta-m): create REPL line that populates Main with arguments to current method
+## "\eS" (meta-S): save version at REPL to file? (a little dangerous, perhaps make it configurable as to whether this is on)
+
+const rebuggerkeys = Dict{Any,Any}(
+    # F11. Note for `konsole` (KDE) users, F11 means "fullscreen". Turn off in Settings->Configure Shortcuts
+    "\e[23~" => (s, o...) -> begin
+        stepping[] || empty!(stack)
+        stepin!(s)
+    end,
+)
+
+function customize_keys(repl)
+    repl.interface = REPL.setup_interface(repl; extra_repl_keymap = rebuggerkeys)
 end
 
 
