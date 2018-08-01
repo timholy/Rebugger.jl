@@ -3,7 +3,7 @@ module Rebugger
 using REPL
 using REPL.LineEdit
 using Revise
-using Revise: get_signature, signature_names, funcdef_body, get_def
+using Revise: ExLike, get_signature, funcdef_body, get_def
 
 # Organization:
 
@@ -59,19 +59,11 @@ using Revise: get_signature, signature_names, funcdef_body, get_def
 const VarnameType = Tuple{Vararg{Symbol}}
 const stack       = Tuple{Method,VarnameType,Any}[]
 const error_stack = Tuple{Method,VarnameType,Any}[]
-const record      = Ref{Any}(nothing)
+const stashed     = Ref{Any}(nothing)
 
 const stepping = Ref(false)
 
 struct StopException <: Exception end
-struct KeywordArg
-    kwname::Symbol
-    val
-end
-function KeywordArg(ex::Expr)
-    @assert ex.head == :kw
-    KeywordArg(ex.args[1], ex.args[2])
-end
 
 ### Stacktraces
 
@@ -152,7 +144,7 @@ end
 ### Stepping
 
 """
-    capture_from_caller!(s::IO)
+    capture_from_caller!(s)
 
 Given a buffer `s` representing a string and "point" (the seek position) set at a call expression,
 replace the call with one that stashes the function and arguments of the call.
@@ -161,49 +153,55 @@ For example, if `s` has contents
 
     <some code>
     if x > 0.5
-        ^fcomplex(x)
+        ^fcomplex(x; kw1=1.1)
         <more code>
 
 where in the above `^` indicates `position(s)` ("point"), rewrite this as
 
     <some code>
     if x > 0.5
-        Rebugger.record[] = (fcomplex, (x,))
+        Main.Rebugger.stashed[] = (fcomplex, (x,), (:kw1=>1.1,))
         throw(Rebugger.StopException())
         <more code>
 
 Consequently, if this is `eval`ed and execution reaches "^", it causes the arguments
-of the call to be stored in `Rebugger.record`.
+of the call to be stored in `Rebugger.stashed`.
 
 This does the buffer-preparation for *caller* capture.
 For *callee* capture, see [`method_capture_from_callee`](@ref),
 and [`stepin!`](@ref) which puts these two together.
 """
-function capture_from_caller!(s::IO)  # f"or testing, needs to work on a normal IO object
+function capture_from_caller!(s)  # for testing, needs to work on a normal IO object
     start = position(s)
-    str = LineEdit.content(s)
-    expr, stop = Meta.parse(str, start+1; raise=false)
+    callstring = LineEdit.content(s)
+    expr, stop = Meta.parse(callstring, start+1; raise=false)
     (isa(expr, Expr) && expr.head == :call) || throw(Meta.ParseError("Point must be at a call expression, got $expr"))
     fname, args = expr.args[1], expr.args[2:end]
+    # In the edited callstring we can eliminate any kwargs, because they don't affect dispatch
+    # (all we want to do is figure out which method gets called)
     if length(args) >= 1 && isa(args[1], Expr) && args[1].head == :parameters
-        # This calls with keyword syntax, repackage
-        for a in args[1].args
-            push!(args, KeywordArg(a))
-        end
         popfirst!(args)
     end
+    while !isempty(args) && isa(args[end], Expr) && args[end].head == :kw
+        pop!(args)
+    end
     captureexpr = quote
-        Main.Rebugger.record[] = ($fname, ($(args...),))
+        Main.Rebugger.stashed[] = ($fname, (($(args...)),))
         throw(StopException())
     end
-    capturestr = replace(string(captureexpr), "KeywordArg"=>"Main.Rebugger.KeywordArg")
-    capturestr = replace(capturestr, "StopException"=>"Main.Rebugger.StopException")
+    # Now insert this in place of the marked call
+    # Unfortunately we have to convert to a string and there are scoping issues
+    capturestr = string(captureexpr)
+    regexunscoped = r"(?<!\.)StopException"
+    capturestr = replace(capturestr, regexunscoped=>(s->"Rebugger."*s))
+    regexscoped   = r"(?<!\.)Rebugger\.StopException"
+    capturestr = replace(capturestr, regexscoped=>(s->"Main."*s))
     LineEdit.edit_splice!(s, start=>stop-1, capturestr*"\n")
-    return s
+    return callstring, LineEdit.content(s)
 end
 
 """
-    stepin!(s::IO, index=length(Rebugger.stack)+1)
+    stepin!(s, index=length(Rebugger.stack)+1)
 
 Given a buffer `s` representing a string and "point" (the seek position) set at a call expression,
 replace the contents of the buffer with a `let` expression that wraps the *body* of the callee.
@@ -223,7 +221,7 @@ where in the above `^` indicates `position(s)` ("point"), and if the definition 
 
 rewrite `s` so that its contents are
 
-    @eval ModuleOf_fcomplex let (x, y, z, kw1, A, T) = Rebugger.stack[index][3]
+    @eval ModuleOf_fcomplex let (x, y, z, kw1, A, T) = Main.Rebugger.stack[index][3]
         <body>
     end
 
@@ -232,36 +230,50 @@ set when you called `fcomplex(x)` in `s` above.
 This line can be edited and `eval`ed at the REPL to analyze or improve `fcomplex`,
 or can be used for further `stepin!` calls.
 """
-function stepin!(s::IO, index=length(stack)+1)
-    # Capture calling arguments
-    capture_from_caller!(s)
-    expr = Meta.parse(LineEdit.content(s))
+function stepin!(s, index=length(stack)+1)
+    @assert(stashed[] == nothing)
+    ## Stage 1 is "stashing". We do this simply to determine which method is called.
+    callstring, stashstring = capture_from_caller!(s)
+    callexpr, stashexpr = Meta.parse(callstring), Meta.parse(stashstring)
     try
-        Core.eval(Main, expr)  # this should already start with an @eval mod ...
+        Core.eval(Main, stashexpr)
+        @warn "evaluation did not reach the cursor position"
+        @goto writeback
     catch err
-        isa(err, StopException) || rethrow(err)
+        err isa StopException || rethrow(err)
     end
-    f, args = record[]
-    # We now know the function and argument-values and can thus determine the callee.
+    ## Stage 2: retrieve the stashed values and get the correct method
+    f, args = stashed[]
     method = which(f, Base.typesof(args...))
+    stashed[] = nothing
     def = get_def(method)
     if def == nothing
         @warn "unable to step into $f"
-        return nothing
+        @goto writeback
     end
-    # To ensure the callee's body is evaluatable, we need to grab any additional variables
-    # (default arguments, keyword arguments, and type parameters) that get set by the callee.
-    # Redefine callee (`def`) to insert all inputs onto stack and throw a StopException
+    ## Stage 3: storage, where the full callee arguments will be placed on Rebugger.stack
+    # Create the input-capturing callee method and then call it using the original
+    # line that was on the REPL
     method_capture_from_callee(method, def, index; trunc=true)
     try
-        Base.invokelatest(f, args...)
+        Core.eval(Main, callexpr)
+        @warn "evaluation failed to store the inputs"
+        @goto writeback
     catch err
-        isa(err, StopException) || rethrow(err)
+        err isa StopException || rethrow(err)
     end
-    # Now we have the full inputs. Restore the original method.
+    ## Stage 4: clean up and insert the new method body into the REPL
+    # Restore the original method
     eval_noinfo(method.module, def)
     # Dump the method body to the REPL
     generate_let_command(s, index)
+    stepping[] = true
+    return nothing
+
+    @label writeback
+    LineEdit.edit_clear(s)
+    LineEdit.edit_insert(s, callstring)
+    return nothing
 end
 
 ### Shared methods
@@ -269,7 +281,7 @@ end
 """
     method_capture_from_callee(method, def, index; trunc::Bool=false)
 
-Redefine `method` so that it stores its inputs in `Rebugger.stack[index]`.
+Redefine `method` so that it stores its inputs in `Main.Rebugger.stack[index]`.
 For a method
 
     function fcomplex(x::A, y=1, z=""; kw1=3.2) where A<:AbstractArray{T} where T
@@ -279,7 +291,7 @@ For a method
 generate a new method
 
     function fcomplex(x::A, y=1, z=""; kw1=3.2) where A<:AbstractArray{T} where T
-        Rebugger.stack[index] = (fcomplex, (:x, :y, :z, :kw1, :A, :T), deepcopy((x, y, z, kw1, A, T)))
+        Main.Rebugger.stack[index] = (fcomplex, (:x, :y, :z, :kw1, :A, :T), deepcopy((x, y, z, kw1, A, T)))
         <body>
     end
 
@@ -295,15 +307,14 @@ function method_capture_from_callee(method, def, index; trunc::Bool=false)
     end
     sig = convert(Expr, sigr)
     methname, argnames, kwnames, paramnames = signature_names(sig)
-    kwrepro = [:($name=$name) for name in kwnames]
     allnames = (argnames..., kwnames..., paramnames...)
     qallnames = QuoteNode.(allnames)
-    stashexpr = :(Main.Rebugger.stack[$index] = ($method, ($(qallnames...),), Main.Rebugger.safe_deepcopy($(allnames...))))
+    storeexpr = :(Main.Rebugger.stack[$index] = ($method, ($(qallnames...),), Main.Rebugger.safe_deepcopy($(allnames...))))
     capture_body = trunc ? quote
-        $stashexpr
+        $storeexpr
         throw(Main.Rebugger.StopException())
     end : quote
-        $stashexpr
+        $storeexpr
         $body
     end
     capture_function = Expr(:function, sig, capture_body)
@@ -311,7 +322,7 @@ function method_capture_from_callee(method, def, index; trunc::Bool=false)
         resize!(stack, index)
     end
     mod = method.module
-    Core.eval(mod, capture_function)
+    eval_noinfo(mod, capture_function)
 end
 
 function generate_let_command(s, index)
@@ -324,6 +335,62 @@ function generate_let_command(s, index)
         end"""
     LineEdit.edit_clear(s)
     LineEdit.edit_insert(s, letcommand)
+end
+
+
+### Utilities
+
+"""
+    fname, argnames, kwnames, parameternames = signature_names(sigex::Expr)
+
+Return the function name `fname` and names given to its arguments, keyword arguments,
+and parameters, as specified by the method signature-expression `sigex`.
+
+# Examples
+
+```jldoctest; setup=:(using Revise)
+julia> Revise.signature_names(:(complexargs(w::Ref{A}, @nospecialize(x::Integer), y, z::String=""; kwarg::Bool=false, kw2::String="", kwargs...) where A <: AbstractArray{T,N} where {T,N}))
+(:complexargs, (:w, :x, :y, :z), (:kwarg, :kw2, :kwargs), (:A, :T, :N))
+```
+"""
+function signature_names(sigex::ExLike)
+    # TODO: add parameter names
+    argname(s::Symbol) = s
+    function argname(ex::ExLike)
+        if ex.head == :(...) && length(ex.args) == 1
+            # varargs function
+            ex = ex.args[1]
+            ex isa Symbol && return ex
+        end
+        ex.head == :macrocall && return argname(ex.args[3])  # @nospecialize
+        ex.head == :kw && return argname(ex.args[1])  # default arguments
+        ex.head == :(::) || throw(ArgumentError(string("expected :(::) expression, got ", ex)))
+        arg = ex.args[1]
+        if isa(arg, Expr) && arg.head == :curly && arg.args[1] == :Type
+            arg = arg.args[2]
+        end
+        return arg
+    end
+    paramname(s::Symbol) = s
+    function paramname(ex::ExLike)
+        ex.head == :(<:) && return paramname(ex.args[1])
+        throw(ArgumentError(string("expected parameter expression, got ", ex)))
+    end
+
+    kwnames, parameternames = (), ()
+    while sigex.head == :where
+        parameternames = (paramname.(sigex.args[2:end])..., parameternames...)
+        sigex = sigex.args[1]
+    end
+    name = sigex.args[1]
+    offset = 1
+    if length(sigex.args) > 1 && isa(sigex.args[2], ExLike) && sigex.args[2].head == :parameters
+        # keyword arguments
+        kwnames = tuple(argname.(sigex.args[2].args)...)
+        offset += 1
+    end
+
+    return sigex.args[1], tuple(argname.(sigex.args[offset+1:end])...), kwnames, parameternames
 end
 
 safe_deepcopy(a, args...) = (_deepcopy(a), safe_deepcopy(args...)...)

@@ -3,11 +3,14 @@ module RebuggerTesting
 const cbdata1 = Ref{Any}(nothing)
 const cbdata2 = Ref{Any}(nothing)
 
-function foo end
+foo(x, y) = nothing
 
 snoop0()             = snoop1("Spy")
 snoop1(word)         = snoop2(word, "on")
 snoop2(word1, word2) = snoop3(word1, word2, "arguments")
-snoop3(word1, word2, word3::T; adv="simply") where T = error("oops")
+snoop3(word1, word2, word3::T; adv="simply", morekws...) where T = error("oops")
+
+kwvarargs(x; kw1=1, kwargs...)  = kwvarargs2(x; kw1=kw1, kwargs...)
+kwvarargs2(x; kw1=0, passthrough=true) = (x, kw1, passthrough)
 
 end

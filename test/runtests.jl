@@ -1,5 +1,5 @@
 using Rebugger
-using Rebugger: StopException, KeywordArg
+using Rebugger: StopException
 using Test
 
 if !isdefined(Main, :RebuggerTesting)
@@ -39,12 +39,12 @@ end
 
     @testset "Caller buffer capture and insertion" begin
         function run_insertion(str, atstr)
-            RebuggerTesting.cbdata1[] = RebuggerTesting.cbdata2[] = Rebugger.record[] = nothing
+            RebuggerTesting.cbdata1[] = RebuggerTesting.cbdata2[] = Rebugger.stashed[] = nothing
             io = IOBuffer()
             idx = findfirst(atstr, str)
             print(io, str)
             seek(io, first(idx)-1)
-            Rebugger.capture_from_caller!(io)
+            storestring, stashstring = Rebugger.capture_from_caller!(io)
             str′ = String(take!(io))
             expr′ = Meta.parse(str′)
             try
@@ -61,10 +61,10 @@ end
             cbdata2[] = i
         end
         """
-        @test run_insertion(str, "foo")
+        run_insertion(str, "foo")
         @test RebuggerTesting.cbdata1[] == 1
         @test RebuggerTesting.cbdata2[] == nothing
-        @test Rebugger.record[] == (RebuggerTesting.foo, (12, 13, KeywordArg(:akw, "modified")))
+        @test Rebugger.stashed[] == (RebuggerTesting.foo, (12, 13))
         str = """
         for i = 1:5
             error("not caught")
@@ -107,6 +107,28 @@ end
             snoop3(word1, word2, "arguments")
         end
         end"""
+
+        empty!(Rebugger.stack)
+        str = "RebuggerTesting.kwvarargs(1)"
+        cmd = run_stepin(str, str)
+        @test cmd == """
+        @eval Main.RebuggerTesting let (x, kw1, kwargs) = Main.Rebugger.stack[1][3]
+        begin
+            kwvarargs2(x; kw1=kw1, kwargs...)
+        end
+        end"""
+        cmd = run_stepin(cmd, "kwvarargs2")
+
+        empty!(Rebugger.stack)
+        str = "RebuggerTesting.kwvarargs(1; passthrough=false)"
+        cmd = run_stepin(str, str)
+        @test cmd == """
+        @eval Main.RebuggerTesting let (x, kw1, kwargs) = Main.Rebugger.stack[1][3]
+        begin
+            kwvarargs2(x; kw1=kw1, kwargs...)
+        end
+        end"""
+        cmd = run_stepin(cmd, "kwvarargs2")
     end
 
     @testset "Capture stacktrace" begin
@@ -122,7 +144,7 @@ end
         @test Rebugger.stack[1][2:3] == ((), ())
         @test Rebugger.stack[2][2:3] == ((:word,), ("Spy",))
         @test Rebugger.stack[3][2:3] == ((:word1, :word2), ("Spy", "on"))
-        @test Rebugger.stack[4][2:3] == ((:word1, :word2, :word3, :adv, :T), ("Spy", "on", "arguments", "simply", String))
+        @test Rebugger.stack[4][2:3] == ((:word1, :word2, :word3, :adv, :morekws, :T), ("Spy", "on", "arguments", "simply", Iterators.Pairs(NamedTuple(), ()), String))
         empty!(Rebugger.stack)
         @test_throws ErrorException("oops") RebuggerTesting.snoop0()
         @test isempty(Rebugger.stack)
