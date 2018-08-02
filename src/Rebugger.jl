@@ -185,7 +185,7 @@ set when you called `fcomplex(x)` in `s` above.
 This line can be edited and `eval`ed at the REPL to analyze or improve `fcomplex`,
 or can be used for further `stepin!` calls.
 """
-function stepin!(s)
+function stepin!(s; metadata::Bool=true)
     @assert(stashed[] == nothing)
     ## Stage 1 is "stashing". We do this simply to determine which method is called.
     callstring, stashstring, index = capture_from_caller!(s)
@@ -221,9 +221,9 @@ function stepin!(s)
     ## Stage 4: clean up and insert the new method body into the REPL
     # Restore the original method
     eval_noinfo(method.module, def)
-    show_current_stackpos(s, index, -1)
+    metadata && show_current_stackpos(s, index, -1)
     # Dump the method body to the REPL
-    generate_let_command(s, index)
+    generate_let_command(s, index; metadata=metadata)
     return nothing
 
     @label writeback
@@ -318,18 +318,19 @@ function method_capture_from_callee(method, def, index; trunc::Bool=false)
     eval_noinfo(mod, capture_function)
 end
 
-function generate_let_command(index)
+function generate_let_command(index; metadata::Bool=true)
     method, varnames, varvals = stack[index]
-    argstring = '(' * join(varnames, ", ") * ')'
+    argstring = '(' * join(varnames, ", ") * (length(varnames)==1 ? ",)" : ')')
     body = convert(Expr, Revise.striplines!(deepcopy(funcdef_body(get_def(method)))))
+    meta = metadata ? "  # stackid $(stackid[])" : ""
     letcommand = """
-        @eval $(method.module) let $argstring = Main.Rebugger.stack[$index][3]  # stackid $(stackid[])
+        @eval $(method.module) let $argstring = Main.Rebugger.stack[$index][3]$meta
         $body
         end"""
     end
 
-function generate_let_command(s, index)
-    letcommand = generate_let_command(index)
+function generate_let_command(s, index; metadata::Bool=true)
+    letcommand = generate_let_command(index; metadata=metadata)
     stackcmd[index] = letcommand
     LineEdit.edit_clear(s)
     LineEdit.edit_insert(s, letcommand)
@@ -338,14 +339,14 @@ end
 function show_current_stackpos(s, index, bonus=0)
     # Show stacktrace
     LineEdit.edit_clear(s)
-    out_stream = s.current_mode.repl.t.out_stream
-    print(out_stream, "\r\u1b[K")     # clear the line
+    term = terminal(s)
+    print(term, "\r\u1b[K")     # clear the line
     for _ in 1:index+bonus
-        print(out_stream, "\r\u1b[K\u1b[A")   # move up while clearing line
+        print(term, "\r\u1b[K\u1b[A")   # move up while clearing line
     end
     for i = 1:index
         stackitem = stack[i]
-        printstyled(out_stream, stackitem[1], '\n'; color=:light_magenta)
+        printstyled(term, stackitem[1], '\n'; color=:light_magenta)
     end
     return nothing
 end
@@ -432,10 +433,10 @@ function get_stack_index(callstring)
     hasid = occursin("# stackid $(stackid[])", callstring)
     if hasid
         iend1 = findfirst(isequal('\n'), callstring)
-        iend1 == nothing ? length(callstring) : iend1
+        iend1 = iend1 == nothing ? length(callstring) : iend1
         firstline = callstring[1:iend1]
         mindex = match(r"Main.Rebugger.stack\[(\d+)\]", firstline)
-        index = parse(Int, mindex.captures[1])
+        index = mindex==nothing ? 0 : parse(Int, mindex.captures[1])
     else
         index = 0
     end

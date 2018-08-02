@@ -85,24 +85,25 @@ end
         end
 
         empty!(Rebugger.stack)
+        Rebugger.stackid[] = "runtests"
         str = "RebuggerTesting.snoop0()"
-        cmd = run_stepin(str, str)
+        cmd = run_stepin(str*"  # stackid runtests", str)
         @test cmd == """
-        @eval Main.RebuggerTesting let () = Main.Rebugger.stack[1][3]
+        @eval Main.RebuggerTesting let () = Main.Rebugger.stack[1][3]  # stackid runtests
         begin
             snoop1("Spy")
         end
         end"""
         cmd = run_stepin(cmd, "snoop1")
         @test cmd == """
-        @eval Main.RebuggerTesting let (word) = Main.Rebugger.stack[2][3]
+        @eval Main.RebuggerTesting let (word,) = Main.Rebugger.stack[2][3]  # stackid runtests
         begin
             snoop2(word, "on")
         end
         end"""
         cmd = run_stepin(cmd, "snoop2")
         @test cmd == """
-        @eval Main.RebuggerTesting let (word1, word2) = Main.Rebugger.stack[3][3]
+        @eval Main.RebuggerTesting let (word1, word2) = Main.Rebugger.stack[3][3]  # stackid runtests
         begin
             snoop3(word1, word2, "arguments")
         end
@@ -110,9 +111,9 @@ end
 
         empty!(Rebugger.stack)
         str = "RebuggerTesting.kwvarargs(1)"
-        cmd = run_stepin(str, str)
+        cmd = run_stepin(str*"  # stackid runtests", str)
         @test cmd == """
-        @eval Main.RebuggerTesting let (x, kw1, kwargs) = Main.Rebugger.stack[1][3]
+        @eval Main.RebuggerTesting let (x, kw1, kwargs) = Main.Rebugger.stack[1][3]  # stackid runtests
         begin
             kwvarargs2(x; kw1=kw1, kwargs...)
         end
@@ -121,9 +122,9 @@ end
 
         empty!(Rebugger.stack)
         str = "RebuggerTesting.kwvarargs(1; passthrough=false)"
-        cmd = run_stepin(str, str)
+        cmd = run_stepin(str*"  # stackid runtests", str)
         @test cmd == """
-        @eval Main.RebuggerTesting let (x, kw1, kwargs) = Main.Rebugger.stack[1][3]
+        @eval Main.RebuggerTesting let (x, kw1, kwargs) = Main.Rebugger.stack[1][3]  # stackid runtests
         begin
             kwvarargs2(x; kw1=kw1, kwargs...)
         end
