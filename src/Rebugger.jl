@@ -2,6 +2,7 @@ module Rebugger
 
 using REPL, Random
 using REPL.LineEdit
+using REPL.LineEdit: terminal
 using Revise
 using Revise: ExLike, get_signature, funcdef_body, get_def
 
@@ -268,6 +269,37 @@ function capture_stacktrace(s)
     return nothing
 end
 
+# function showvalue(s)
+#     callstring = LineEdit.content(s)
+#     index, hasid = get_stack_index(callstring)
+#     if hasid
+#         p = position(s)
+#     end
+# end
+
+function showinputs(s)
+    callstring = LineEdit.content(s)
+    index, hasid = get_stack_index(callstring)
+    if hasid
+        out_stream = s.current_mode.repl.t.out_stream
+        sz = displaysize(out_stream)
+        push!(msgs, sz)
+        push!(msgs, s)
+        stackentry = stack[index]
+        nargs = length(stackentry[2])
+        w = sz[2] ÷ nargs - 2
+        io = IOBuffer()
+        for (name, val) in zip(stackentry[2], stackentry[3])
+            # print(out_stream, '\n')
+            Revise.printf_maxsize(print, io, name, "=", val, ", "; maxlines=1, maxchars=w)
+        end
+        print(io, "\n\rjulia> ")
+        s.current_mode.prompt = String(take!(io))
+        LineEdit.refresh_line(s)
+        s.current_mode.prompt = "julia> "
+    end
+    return nothing
+end
 
 ### Shared methods
 
@@ -366,6 +398,11 @@ const rebuggerkeys = Dict{Any,Any}(
     "\e[23;5~" => (s, o...) -> stepdown!(s),
     # F5
     "\e[15~"   => (s, o...) -> capture_stacktrace(s),
+    # F1
+    "^[OP"     => (s, o...) -> showvalue(s),
+    # Shift-F1 (deactivate for konsole)
+    # F4 (deactivate for konsole)
+    "^[OS"    => (s, o...) -> showinputs(s),
 )
 
 function customize_keys(repl)
