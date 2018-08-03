@@ -127,7 +127,7 @@ function stepin(io)
     catch err
         err isa StopException || rethrow(err)
     end
-    return generate_let_command(method, uuid)
+    return method, generate_let_command(method, uuid)
 end
 
 """

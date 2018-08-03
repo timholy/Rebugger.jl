@@ -1,5 +1,94 @@
 const msgs        = []   # for debugging (info sent directly to terminal might be overwritten before it is seen)
 
+dummy() = nothing
+const dummymethod = first(methods(dummy))
+
+uuidextractor(str) = match(r"getstored\(\"([a-z0-9\-]+)\"\)", str)
+
+mutable struct RebugTerminal <: Terminals.UnixTerminal
+    # Fields from TTYTerminal
+    term_type::String
+    in_stream::IO
+    out_stream::IO
+    err_stream::IO
+    # Size of the printed header. The header is what motivates a new terminal type,
+    # specifically because LineEdit.clear_input_area only takes a terminal and an ias.
+    # The ias (stored in PromptState) is used to understand the extent of the
+    # user input buffer, and thus can't include any lines not related to user input.
+    # Consequently we have to be able to correct it to include the header.
+    nlines::Int
+    # Additional fields
+    warnmsg::String
+    errmsg::String
+    current_method::Method
+end
+RebugTerminal(term::Terminals.TTYTerminal) =
+    RebugTerminal(term.term_type, term.in_stream, term.out_stream, term.err_stream,
+                  0, "", "", dummymethod)
+
+tty(term::RebugTerminal) =
+    Terminals.TTYTerminal(term.term_type, term.in_stream, term.out_stream, term.err_stream)
+
+function steal_terminal!(state::PromptState)
+    term = terminal(state)
+    term isa RebugTerminal && return term
+    state.terminal = RebugTerminal(term)
+end
+
+# Forward some terminal operations to the tty
+Terminals.raw!(t::RebugTerminal, raw::Bool) = Terminals.raw!(tty(t), raw)
+Terminals.hascolor(t::RebugTerminal) = Terminals.hascolor(tty(t))
+Base.in(key_value::Pair, t::RebugTerminal) = in(key_value, pipe_writer(tty(t)))
+Base.haskey(t::RebugTerminal, key) = haskey(pipe_writer(tty(t)), key)
+Base.getindex(t::RebugTerminal, key) = getindex(pipe_writer(tty(t)), key)
+Base.get(t::RebugTerminal, key, default) = get(pipe_writer(tty(t)), key, default)
+Base.peek(t::RebugTerminal) = Base.peek(t.in_stream)
+
+# Display of Rebug info
+function clear_lines(terminal::Terminals.UnixTerminal, n)
+    for i = 1:n
+        Terminals.clear_line(terminal)
+        Terminals.cmove_up(terminal)
+    end
+end
+
+function LineEdit._clear_input_area(t::RebugTerminal, state::InputAreaState)
+    ty = tty(t)
+    LineEdit._clear_input_area(ty, state)
+    clear_lines(ty, t.nlines)
+end
+
+function LineEdit.refresh_multi_line(termbuf::TerminalBuffer, terminal::RebugTerminal, buf::IOBuffer, state::InputAreaState, prompt = "";
+                                     indent = 0, region_active = false)
+    LineEdit._clear_input_area(terminal, state)
+    printstyled(terminal.current_method, '\n'; color=:light_magenta)
+    terminal.nlines = 1
+    LineEdit.refresh_multi_line(termbuf, tty(terminal), buf, InputAreaState(0, 0), prompt; indent=indent, region_active=region_active)
+end
+
+# Custom methods
+set_method!(term::RebugTerminal, method::Method) = term.current_method = method
+
+function set_method!(term::RebugTerminal, uuid::UUID)
+    term.current_method = if haskey(stored, uuid)
+        stored[uuid].method
+    else
+        dummymethod
+    end
+end
+
+function set_method!(term::RebugTerminal, str::AbstractString)
+    m = uuidextractor(str)
+    if m isa RegexMatch && length(m.captures) == 1
+        return set_method!(term, UUID(m.captures[1]))
+    end
+    term.current_method = dummymethod
+end
+
+function set_method!(s::MIState, method::Method)
+    set_method!(terminal(state(s)), method)
+end
+
 """
     stepin(s)
 
@@ -31,7 +120,8 @@ This line can be edited and `eval`ed at the REPL to analyze or improve `fcomplex
 or can be used for further `stepin` calls.
 """
 function stepin(s::MIState)
-    letcmd = stepin(buffer(s))
+    method, letcmd = stepin(buffer(s))
+    set_method!(s, method)
     LineEdit.edit_clear(s)
     # metadata && show_current_stackpos(s, index, -1)
     LineEdit.edit_insert(s, letcmd)
@@ -66,7 +156,6 @@ end
 # end
 
 function capture_stacktrace(s)
-    push!(msgs, "stacktrace")
     cmdstring = LineEdit.content(s)
     expr = Meta.parse(cmdstring)
     capture_stacktrace(expr)
@@ -138,6 +227,18 @@ end
 
 function mode_switch(s, other_prompt)
     buf = copy(buffer(s))
+    # Because the rebug prompt might have a different number of lines than the julia prompt,
+    # we have to clear before we hand things over
+    oldstate, newstate = state(s), state(s, other_prompt)
+    term = terminal(oldstate)
+    if term isa RebugTerminal
+        LineEdit._clear_input_area(term, oldstate.ias)
+        oldstate.ias = InputAreaState(0,0)
+        term.nlines = 0
+    else
+        LineEdit._clear_input_area(term, oldstate.ias)
+        oldstate.ias = InputAreaState(0,0)
+    end
     transition(s, other_prompt) do
         state(s, other_prompt).input_buffer = buf
     end
@@ -196,11 +297,31 @@ function repl_init(repl)
                           sticky = true)
     rebug_prompt.on_done = REPL.respond(x->Base.parse_input_line(x,filename=REPL.repl_filename(repl,rebug_prompt.hist)), repl, rebug_prompt)
 
+
+    # back to `julia>` if hit ^C or backspace at beginning of line
+    # This is like REPL.mode_keymap except for the calling of `mode_switch`
+    breakout_keymap = Dict{Any,Any}(
+        '\b' => function (s,o...)
+            if isempty(s) || position(LineEdit.buffer(s)) == 0
+                mode_switch(s, julia_prompt)
+            else
+                LineEdit.edit_backspace(s)
+            end
+        end,
+        "^C" => function (s,o...)
+            LineEdit.move_input_end(s)
+            LineEdit.refresh_line(s)
+            print(terminal(s), "^C\n\n")
+            transition(s, julia_prompt)
+            transition(s, :reset)
+            LineEdit.refresh_line(s)
+        end)
+
     search_prompt, skeymap = LineEdit.setup_search_keymap(hp)
     prefix_prompt, prefix_keymap = LineEdit.setup_prefix_keymap(hp, rebug_prompt)
 
     rebug_prompt.keymap_dict = LineEdit.keymap(Dict{Any,Any}[
-        REPL.mode_keymap(julia_prompt),  # back to `julia>` if hit ^C or backspace at beginning of line
+        breakout_keymap,
         rebugger_modeswitch,
         rebugger_keys,
         skeymap,
@@ -211,10 +332,17 @@ function repl_init(repl)
     # Ensure history entries are attributed to rebug mode
     hp.mode_mapping[:rebug] = rebug_prompt
 
+    # # Create a special terminal for use in rebug mode
+    @async begin
+        while !isdefined(Base, :active_repl)
+            sleep(0.05)
+        end
+        steal_terminal!(state(repl.mistate, rebug_prompt))
+    end
+
     # Defined internally because we need access to both julia_prompt and rebug_prompt,
     # but this function must be available globally.
     @eval function toggle_rebug(s)
-        push!(msgs, stacktrace(backtrace()))
         other_prompt = if mode(s) == $julia_prompt
             $rebug_prompt
         elseif mode(s) == $rebug_prompt
