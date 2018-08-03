@@ -31,17 +31,19 @@ tty(term::RebugTerminal) =
 
 function steal_terminal!(state::PromptState)
     term = terminal(state)
-    term isa RebugTerminal && return term
-    state.terminal = RebugTerminal(term)
+    if !(term isa RebugTerminal)
+        state.terminal = RebugTerminal(term)
+    end
+    return true
 end
 
 # Forward some terminal operations to the tty
 Terminals.raw!(t::RebugTerminal, raw::Bool) = Terminals.raw!(tty(t), raw)
 Terminals.hascolor(t::RebugTerminal) = Terminals.hascolor(tty(t))
-Base.in(key_value::Pair, t::RebugTerminal) = in(key_value, pipe_writer(tty(t)))
-Base.haskey(t::RebugTerminal, key) = haskey(pipe_writer(tty(t)), key)
-Base.getindex(t::RebugTerminal, key) = getindex(pipe_writer(tty(t)), key)
-Base.get(t::RebugTerminal, key, default) = get(pipe_writer(tty(t)), key, default)
+Base.in(key_value::Pair, t::RebugTerminal) = in(key_value, Base.pipe_writer(tty(t)))
+Base.haskey(t::RebugTerminal, key) = haskey(Base.pipe_writer(tty(t)), key)
+Base.getindex(t::RebugTerminal, key) = getindex(Base.pipe_writer(tty(t)), key)
+Base.get(t::RebugTerminal, key, default) = get(Base.pipe_writer(tty(t)), key, default)
 Base.peek(t::RebugTerminal) = Base.peek(t.in_stream)
 
 # Display of Rebug info
@@ -287,7 +289,7 @@ function repl_init(repl)
 
     hp = julia_prompt.hist
 
-    rebug_prompt = Prompt("rebug> ";
+    rebug_prompt = Prompt(rebug_prompt_string;
                           prompt_prefix = julia_prompt.prompt_prefix,
                           prompt_suffix = julia_prompt.prompt_suffix,
                           repl = repl,
@@ -332,15 +334,7 @@ function repl_init(repl)
     # Ensure history entries are attributed to rebug mode
     hp.mode_mapping[:rebug] = rebug_prompt
 
-    # # Create a special terminal for use in rebug mode
-    @async begin
-        while !isdefined(Base, :active_repl)
-            sleep(0.05)
-        end
-        steal_terminal!(state(repl.mistate, rebug_prompt))
-    end
-
-    # Defined internally because we need access to both julia_prompt and rebug_prompt,
+   # Defined internally because we need access to both julia_prompt and rebug_prompt,
     # but this function must be available globally.
     @eval function toggle_rebug(s)
         other_prompt = if mode(s) == $julia_prompt
