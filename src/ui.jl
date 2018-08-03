@@ -2,6 +2,7 @@ const msgs        = []   # for debugging (info sent directly to terminal might b
 
 dummy() = nothing
 const dummymethod = first(methods(dummy))
+const dummyuuid   = UUID(UInt128(0))
 
 uuidextractor(str) = match(r"getstored\(\"([a-z0-9\-]+)\"\)", str)
 
@@ -20,11 +21,12 @@ mutable struct RebugTerminal <: Terminals.UnixTerminal
     # Additional fields
     warnmsg::String
     errmsg::String
+    uuid::UUID
     current_method::Method
 end
 RebugTerminal(term::Terminals.TTYTerminal) =
     RebugTerminal(term.term_type, term.in_stream, term.out_stream, term.err_stream,
-                  0, "", "", dummymethod)
+                  0, "", "", dummyuuid, dummymethod)
 
 tty(term::RebugTerminal) =
     Terminals.TTYTerminal(term.term_type, term.in_stream, term.out_stream, term.err_stream)
@@ -54,41 +56,67 @@ function clear_lines(terminal::Terminals.UnixTerminal, n)
     end
 end
 
+function clear_lines(terminal::RebugTerminal)
+    clear_lines(terminal, terminal.nlines)
+    terminal.nlines = 0
+    nothing
+end
+
 function LineEdit._clear_input_area(t::RebugTerminal, state::InputAreaState)
+    push!(msgs, t.nlines)
     ty = tty(t)
     LineEdit._clear_input_area(ty, state)
-    clear_lines(ty, t.nlines)
+    clear_lines(t)
+    nothing
 end
 
 function LineEdit.refresh_multi_line(termbuf::TerminalBuffer, terminal::RebugTerminal, buf::IOBuffer, state::InputAreaState, prompt = "";
                                      indent = 0, region_active = false)
     LineEdit._clear_input_area(terminal, state)
-    printstyled(terminal.current_method, '\n'; color=:light_magenta)
-    terminal.nlines = 1
+    set_uuid!(terminal, content(buf))
+    valid = terminal.uuid != dummyuuid && haskey(stored, terminal.uuid)
+    if valid
+        printstyled(terminal, terminal.current_method, '\n'; color=:light_magenta)
+        terminal.nlines = 1
+        data = stored[terminal.uuid]
+        for (name, val) in zip(data.varnames, data.varvals)
+            Revise.printf_maxsize(terminal, name, " = ", val; maxlines=1) do s, v
+                printstyled(s, v; color=:light_cyan)
+            end
+            print(terminal, '\n')
+            terminal.nlines += 1
+        end
+    end
     LineEdit.refresh_multi_line(termbuf, tty(terminal), buf, InputAreaState(0, 0), prompt; indent=indent, region_active=region_active)
 end
 
 # Custom methods
 set_method!(term::RebugTerminal, method::Method) = term.current_method = method
 
-function set_method!(term::RebugTerminal, uuid::UUID)
+function set_method!(s::MIState, method::Method)
+    set_method!(terminal(state(s)), method)
+end
+
+function set_uuid!(term::RebugTerminal, uuid::UUID)
     term.current_method = if haskey(stored, uuid)
         stored[uuid].method
     else
         dummymethod
     end
+    term.uuid = uuid
 end
 
-function set_method!(term::RebugTerminal, str::AbstractString)
+function set_uuid!(term::RebugTerminal, str::AbstractString)
     m = uuidextractor(str)
     if m isa RegexMatch && length(m.captures) == 1
-        return set_method!(term, UUID(m.captures[1]))
+        return set_uuid!(term, UUID(m.captures[1]))
     end
     term.current_method = dummymethod
 end
+set_uuid!(term::Terminals.UnixTerminal, ::UUID) = nothing
 
-function set_method!(s::MIState, method::Method)
-    set_method!(terminal(state(s)), method)
+function set_uuid!(s::MIState, uuid::UUID)
+    set_uuid!(terminal(state(s)), uuid)
 end
 
 """
@@ -122,10 +150,9 @@ This line can be edited and `eval`ed at the REPL to analyze or improve `fcomplex
 or can be used for further `stepin` calls.
 """
 function stepin(s::MIState)
-    method, letcmd = stepin(buffer(s))
-    set_method!(s, method)
+    uuid, letcmd = stepin(buffer(s))
+    set_uuid!(s, uuid)
     LineEdit.edit_clear(s)
-    # metadata && show_current_stackpos(s, index, -1)
     LineEdit.edit_insert(s, letcmd)
     return nothing
 
@@ -238,8 +265,9 @@ function mode_switch(s, other_prompt)
         oldstate.ias = InputAreaState(0,0)
         term.nlines = 0
     else
-        LineEdit._clear_input_area(term, oldstate.ias)
-        oldstate.ias = InputAreaState(0,0)
+        terminal(newstate).nlines = 0
+        # LineEdit._clear_input_area(term, oldstate.ias)
+        # oldstate.ias = InputAreaState(0,0)
     end
     transition(s, other_prompt) do
         state(s, other_prompt).input_buffer = buf
