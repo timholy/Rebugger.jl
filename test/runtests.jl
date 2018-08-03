@@ -1,14 +1,17 @@
 using Rebugger
 using Rebugger: StopException
-using Test
+using Test, UUIDs
 
 if !isdefined(Main, :RebuggerTesting)
     Revise.track("testmodule.jl")   # so the source code here gets loaded
 end
 
-const empty_kwvarargs = pairs(NamedTuple())
+const empty_kwvarargs = Rebugger.kwstasher()
+uuidextractor(str) = UUID(match(r"getstored\(\"([a-z0-9\-]+)\"\)", str).captures[1])
 
 @testset "Rebugger" begin
+    id = uuid1()
+    @test uuidextractor("vars = getstored(\"$id\") and more stuff") == id
     @testset "Debug core" begin
         @testset "Caller buffer capture and insertion" begin
             function run_insertion(str, atstr)
@@ -37,7 +40,7 @@ const empty_kwvarargs = pairs(NamedTuple())
             @test run_insertion(str, "foo")
             @test RebuggerTesting.cbdata1[] == 1
             @test RebuggerTesting.cbdata2[] == nothing
-            @test Rebugger.stashed[] == (RebuggerTesting.foo, (12, 13))
+            @test Rebugger.stashed[] == (RebuggerTesting.foo, (12, 13), Rebugger.kwstasher(;akw="modified"))
             str = """
             for i = 1:5
                 error("not caught")
@@ -56,16 +59,23 @@ const empty_kwvarargs = pairs(NamedTuple())
             f = Core.eval(RebuggerTesting, def)
             @test f([8,9]) == ([9,10], 1.0, 7)
             m = collect(methods(f))[end]
-            Rebugger.method_capture_from_callee(m, def, 1; trunc=false)
-            @test f([8,9], 2, "13"; kw1=Int, kw2=0) == ([10,11], 13, 0)
-            @test Rebugger.stack[1][2:end] == ((:x, :y, :str, :kw1, :kw2, :kwargs, :A, :T), ([8,9], 2, "13", Int, 0, empty_kwvarargs, Vector{Int}, Int))
-            @test f([8,9]; otherkw=77) == ([9,10], 1.0, 7)
-            @test Rebugger.stack[1][2:end] == ((:x, :y, :str, :kw1, :kw2, :kwargs, :A, :T), ([8,9], 1, "1.0", Float64, 7, pairs((otherkw=77,)), Vector{Int}, Int))
-            empty!(Rebugger.stack)
-            m = collect(methods(f))[end]
-            Rebugger.method_capture_from_callee(m, def, 1; trunc=true)
-            @test_throws StopException f([8,9], 2, "13"; kw1=Int, kw2=0)
-            @test Rebugger.stack[1][2:end] == ((:x, :y, :str, :kw1, :kw2, :kwargs, :A, :T), ([8,9], 2, "13", Int, 0, empty_kwvarargs, Vector{Int}, Int))
+            uuid = Rebugger.method_capture_from_callee(m, def)
+            @test  Rebugger.method_capture_from_callee(m, def) == uuid  # calling twice returns the previously-defined objects
+            fc = Rebugger.storefunc[uuid]
+            @test_throws StopException fc([8,9], 2, "13"; kw1=Int, kw2=0)
+            @test Rebugger.stored[uuid].varnames == (:x, :y, :str, :kw1, :kw2, :kwargs, :A, :T)
+            @test Rebugger.stored[uuid].varvals  == ([8,9], 2, "13", Int, 0, empty_kwvarargs, Vector{Int}, Int)
+            @test_throws StopException fc([8,9]; otherkw=77)
+            @test Rebugger.stored[uuid].varnames == (:x, :y, :str, :kw1, :kw2, :kwargs, :A, :T)
+            @test Rebugger.stored[uuid].varvals  == ([8,9], 1, "1.0", Float64, 7, pairs((otherkw=77,)), Vector{Int}, Int)
+
+            uuid2 = Rebugger.method_capture_from_callee(m, def; overwrite=true)
+            @test uuid2 != uuid
+            fc = Rebugger.storefunc[uuid2]
+            @test fc([8,9], 2, "13"; kw1=Int, kw2=0) == ([10,11], 13, 0)
+            Core.eval(RebuggerTesting, def)
+            @test Rebugger.stored[uuid2].varnames == (:x, :y, :str, :kw1, :kw2, :kwargs, :A, :T)
+            @test Rebugger.stored[uuid2].varvals  == ([8,9], 2, "13", Int, 0, empty_kwvarargs, Vector{Int}, Int)
 
             def = quote
                 modifies!(x) = (x[1] += 1; x)
@@ -73,87 +83,92 @@ const empty_kwvarargs = pairs(NamedTuple())
             f = Core.eval(RebuggerTesting, def)
             @test f([8,9]) == [9,9]
             m = collect(methods(f))[end]
-            Rebugger.method_capture_from_callee(m, def, 1; trunc=false)
-            @test f([8,9]) == [9,9]
-            @test Rebugger.stack[1][2:end] == ((:x,), ([8,9],))  # check that it's the original value
+            uuid = Rebugger.method_capture_from_callee(m, def)
+            fc = Rebugger.storefunc[uuid]
+            @test_throws StopException fc([8,9])
+            @test Rebugger.stored[uuid].varnames == (:x,)
+            @test Rebugger.stored[uuid].varvals  == ([8,9],)
         end
 
         @testset "Step in" begin
-            function run_stepin(str, atstr, index, meta="")
+            function run_stepin(str, atstr)
                 io = IOBuffer()
                 idx = findfirst(atstr, str)
                 @test !isempty(idx)
                 print(io, str)
                 seek(io, first(idx)-1)
-                Rebugger.stepin!(io, index, meta)
+                Rebugger.stepin!(io)
             end
 
             str = "RebuggerTesting.snoop0()"
-            cmd = run_stepin(str, str, 1, "  # some metadata")
+            cmd = run_stepin(str, str)
+            uuid1 = uuidextractor(cmd)
             @test cmd == """
-            @eval Main.RebuggerTesting let () = Main.Rebugger.getstack(1)  # some metadata
+            @eval Main.RebuggerTesting let () = Main.Rebugger.getstored("$uuid1")
             begin
                 snoop1("Spy")
             end
             end"""
-            cmd = run_stepin(cmd, "snoop1", 2)
+            cmd = run_stepin(cmd, "snoop1")
+            uuid2 = uuidextractor(cmd)
             @test cmd == """
-            @eval Main.RebuggerTesting let (word,) = Main.Rebugger.getstack(2)
+            @eval Main.RebuggerTesting let (word,) = Main.Rebugger.getstored("$uuid2")
             begin
                 snoop2(word, "on")
             end
             end"""
-            cmd = run_stepin(cmd, "snoop2", 3)
+            cmd = run_stepin(cmd, "snoop2")
+            uuid3 = uuidextractor(cmd)
             @test cmd == """
-            @eval Main.RebuggerTesting let (word1, word2) = Main.Rebugger.getstack(3)
+            @eval Main.RebuggerTesting let (word1, word2) = Main.Rebugger.getstored("$uuid3")
             begin
                 snoop3(word1, word2, "arguments")
             end
             end"""
-            @test Rebugger.getstack(1) == ()
-            @test Rebugger.getstack(2) == ("Spy",)
-            @test Rebugger.getstack(3) == ("Spy", "on")
+            @test Rebugger.getstored(string(uuid1)) == ()
+            @test Rebugger.getstored(string(uuid2)) == ("Spy",)
+            @test Rebugger.getstored(string(uuid3)) == ("Spy", "on")
 
             str = "RebuggerTesting.kwvarargs(1)"
-            cmd = run_stepin(str, str, 1)
+            cmd = run_stepin(str, str)
+            uuid = uuidextractor(cmd)
             @test cmd == """
-            @eval Main.RebuggerTesting let (x, kw1, kwargs) = Main.Rebugger.getstack(1)
+            @eval Main.RebuggerTesting let (x, kw1, kwargs) = Main.Rebugger.getstored("$uuid")
             begin
                 kwvarargs2(x; kw1=kw1, kwargs...)
             end
             end"""
-            @test Rebugger.getstack(1) == (1, 1, empty_kwvarargs)
-            cmd = run_stepin(cmd, "kwvarargs2", 2)
+            @test Rebugger.getstored(string(uuid)) == (1, 1, empty_kwvarargs)
+            cmd = run_stepin(cmd, "kwvarargs2")
 
             str = "RebuggerTesting.kwvarargs(1; passthrough=false)"
-            cmd = run_stepin(str, str, 1)
+            cmd = run_stepin(str, str)
+            uuid = uuidextractor(cmd)
             @test cmd == """
-            @eval Main.RebuggerTesting let (x, kw1, kwargs) = Main.Rebugger.getstack(1)
+            @eval Main.RebuggerTesting let (x, kw1, kwargs) = Main.Rebugger.getstored("$uuid")
             begin
                 kwvarargs2(x; kw1=kw1, kwargs...)
             end
             end"""
-            @test Rebugger.getstack(1) == (1, 1, pairs((passthrough=false,)))
-            cmd = run_stepin(cmd, "kwvarargs2", 2)
+            @test Rebugger.getstored(string(uuid)) == (1, 1, pairs((passthrough=false,)))
+            cmd = run_stepin(cmd, "kwvarargs2")
         end
 
         @testset "Capture stacktrace" begin
-            empty!(Rebugger.stack)
+            uuids = nothing
             mktemp() do path, iostacktrace
                 redirect_stderr(iostacktrace) do
-                    Rebugger.capture_stacktrace(RebuggerTesting, :(snoop0()))
+                    uuids = Rebugger.capture_stacktrace(RebuggerTesting, :(snoop0()))
                 end
                 flush(iostacktrace)
                 str = read(path, String)
                 @test occursin("snoop3", str)
             end
-            @test Rebugger.stack[1][2:3] == ((), ())
-            @test Rebugger.stack[2][2:3] == ((:word,), ("Spy",))
-            @test Rebugger.stack[3][2:3] == ((:word1, :word2), ("Spy", "on"))
-            @test Rebugger.stack[4][2:3] == ((:word1, :word2, :word3, :adv, :morekws, :T), ("Spy", "on", "arguments", "simply", Iterators.Pairs(NamedTuple(), ()), String))
-            empty!(Rebugger.stack)
+            @test Rebugger.stored[uuids[1]].varvals == ()
+            @test Rebugger.stored[uuids[2]].varvals == ("Spy",)
+            @test Rebugger.stored[uuids[3]].varvals == ("Spy", "on")
+            @test Rebugger.stored[uuids[4]].varvals == ("Spy", "on", "arguments", "simply", empty_kwvarargs, String)
             @test_throws ErrorException("oops") RebuggerTesting.snoop0()
-            @test isempty(Rebugger.stack)
         end
     end
 end

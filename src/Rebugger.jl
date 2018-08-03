@@ -1,6 +1,6 @@
 module Rebugger
 
-using REPL, Random
+using REPL, Random, UUIDs
 using REPL.LineEdit
 using REPL.LineEdit: bufend, content, edit_splice!
 using Revise

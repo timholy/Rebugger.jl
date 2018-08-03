@@ -1,15 +1,21 @@
-# Core debugging logic. It abuses the poor compiler terribly.
+# Core debugging logic.
 # Hopefully someday much of this will be replaced by Gallium.
 
 const VarnameType = Tuple{Vararg{Symbol}}
-const stack       = Tuple{Method,VarnameType,Any}[]
-const stackid     = Ref(randstring(8))
-const stackcmd    = String[]
+struct Stored
+    method::Method
+    varnames::VarnameType
+    varvals
+end
+
 const stashed     = Ref{Any}(nothing)
+const stored      = Dict{UUID,Stored}()              # UUID => store data
+const storefunc   = Dict{UUID,Function}()            # UUID => function that puts inputs into `stored`
+const storemap    = Dict{Tuple{Method,Bool},UUID}()  # (method, overwrite) => UUID
 
 struct StopException   <: Exception end
 struct StashingFailed  <: Exception end   # stashing saves the function and arguments from the caller (transient)
-struct StorageFailed   <: Exception end   # storage puts callee values on the stack (lasts until the stack is cleared)
+struct StorageFailed   <: Exception end   # storage puts callee values into `stored` (lasts until `stored` is cleared)
 struct DefMissing      <: Exception
     method::Method
 end
@@ -20,11 +26,11 @@ end
 ### Stacktraces
 
 """
-    capture_stacktrace(mod, command)
+    uuids = capture_stacktrace(mod, command)
 
 Execute `command` in module `mod`. `command` must throw an error.
 Then instrument the methods in the stacktrace so that their input
-variables are stored in `Rebugger.stack`.
+variables are stored in `Rebugger.stored`.
 After storing the inputs, restore the original methods.
 
 Since this requires two `eval`s of `command`, usage should be limited to
@@ -58,15 +64,13 @@ function capture_stacktrace(mod::Module, command::Expr)
     Base.show_backtrace(stderr, trace)
     print(stderr, '\n')
     length(unique(calledmethods)) == length(calledmethods) || @error "the same method appeared twice, not supported. Try stepping into the command."
-    capture_stacktrace!(reverse!(calledmethods)) do
+    capture_stacktrace!(UUID[], calledmethods) do
         eval_noinfo(mod, command)
     end
-    return nothing
 end
 capture_stacktrace(command::Expr) = capture_stacktrace(Main, command)
 
-function capture_stacktrace!(f::Function, calledmethods::Vector)
-    index = length(calledmethods)
+function capture_stacktrace!(f::Function, uuids::Vector, calledmethods::Vector)
     if isempty(calledmethods)
         # We've finished modifying all the methods, time to run the command
         try
@@ -79,26 +83,24 @@ function capture_stacktrace!(f::Function, calledmethods::Vector)
     method = calledmethods[end]
     def = get_def(method)
     if def != nothing
-        # Now modify `def` to insert into slot `index` (don't throw an error)
-        # and eval it in the appropriate module
-        method_capture_from_callee(method, def, index; trunc=false)
+        push!(uuids, method_capture_from_callee(method, def; overwrite=true))
     end
     # Recurse up the stack until we get to the top...
     pop!(calledmethods)
-    capture_stacktrace!(f, calledmethods)
+    capture_stacktrace!(f, uuids, calledmethods)
     # ...after which it will call the erroring function and come back here.
     # Having come back, restore the original definition
     if def != nothing
-        eval_noinfo(method.module, def)
+        eval_noinfo(method.module, def)  # unfortunately this doesn't restore the original method as a viable key to storemap
     end
+    return uuids
 end
 
 ### Stepping
 
-function stepin!(io, index, meta="")
+function stepin!(io)
     @assert Rebugger.stashed[] === nothing
-    command = content(io)
-    callexpr, _ = Meta.parse(command, 1)  # we'd prefer to call the "short" expression but it may lack scope
+    # Step 1: rewrite the command to stash the call function and its arguments.
     prepare_caller_capture!(io)
     capexpr, stop = Meta.parse(content(io), 1)
     try
@@ -107,11 +109,25 @@ function stepin!(io, index, meta="")
     catch err
         err isa StopException || rethrow(err)
     end
-    f, args = Rebugger.stashed[]
+    f, args, kwargs = Rebugger.stashed[]
     Rebugger.stashed[] = nothing
+    # Step 2: determine which method is called, and if need be create a function
+    # that captures all of the callee's inputs. (This allows us to capture default arguments,
+    # keyword arguments, and type parameters.)
     method = which(f, Base.typesof(args...))
-    capture_from_callee(method, callexpr, index)
-    return generate_let_command(index, meta)
+    uuid = get(storemap, (method, true), nothing)
+    if uuid === nothing
+        uuid = method_capture_from_callee(method)
+    end
+    # Step 3: execute the command to store the inputs.
+    fcapture = storefunc[uuid]
+    try
+        Base.invokelatest(fcapture, args...; kwargs...)
+        throw(StorageFailed())   # this should never happen
+    catch err
+        err isa StopException || rethrow(err)
+    end
+    return generate_let_command(method, uuid)
 end
 
 """
@@ -137,7 +153,7 @@ where in the above `^` indicates `position(s)` ("point"), rewrite this as
 
 (Keyword arguments do not affect dispatch and hence are not stashed.)
 Consequently, if this is `eval`ed and execution reaches "^", it causes the arguments
-of the call to be stored in `Rebugger.stashed`.
+of the call to be placed in `Rebugger.stashed`.
 
 `callexpr` is the original (unmodified) expression specifying the call, i.e.,
 `fcomplex(x, 2; kw1=1.1)` in this case.
@@ -152,16 +168,18 @@ function prepare_caller_capture!(io)  # for testing, needs to work on a normal I
     callexpr, len = Meta.parse(callstring, 1)
     (isa(callexpr, Expr) && callexpr.head == :call) || throw(Meta.ParseError("point must be at a call expression, got $callexpr"))
     fname, args = callexpr.args[1], callexpr.args[2:end]
-    # In the edited callstring we can eliminate any kwargs, because they don't affect dispatch
-    # (all we want to do is figure out which method gets called)
+    # In the edited callstring separate any kwargs now. They don't affect dispatch.
+    kwargs = []
     if length(args) >= 1 && isa(args[1], Expr) && args[1].head == :parameters
-        popfirst!(args)
+        # foo(x; kw1=1, ...) syntax    (with the semicolon)
+        append!(kwargs, popfirst!(args).args)
     end
     while !isempty(args) && isa(args[end], Expr) && args[end].head == :kw
-        pop!(args)
+        # foo(x, kw1=1, ...) syntax    (with a comma, no semicolon)
+        push!(kwargs, pop!(args))
     end
     captureexpr = quote
-        Main.Rebugger.stashed[] = ($fname, (($(args...)),))
+        Main.Rebugger.stashed[] = ($fname, (($(args...)),), Main.Rebugger.kwstasher(; $(kwargs...)))
         throw(StopException())
     end
     # Now insert this in place of the marked call
@@ -176,97 +194,82 @@ function prepare_caller_capture!(io)  # for testing, needs to work on a normal I
 end
 
 """
-    capture_from_callee(method::Method, callexpr, index)
+    uuid = method_capture_from_callee(method; overwrite::Bool=false)
 
-Given an expression `callexpr` that will resuling in calling `method` (not necessarily directly),
-store the method, its argument names, and input values to `Rebugger.stack[index]`.
-
-`callexpr` will then be `eval`ed in `Main`; all the variables needed by `callexpr`
-must already be defined.
-
-Finally, the method will be restored to its original definition.
-
-This does *callee* capture using [`method_capture_from_callee`](@ref).
-For *caller* capture, see [`prepare_caller_capture!`](@ref).
-"""
-function capture_from_callee(method::Method, callexpr, index::Integer)
-    def = get_def(method)
-    def == nothing && throw(DefMissing(method))
-    # Create the input-capturing callee method and then call it using the original
-    # line that was on the REPL
-    method_capture_from_callee(method, def, index; trunc=true)
-    try
-        # Now that we've modified the method, do not exit without restoring it
-        try
-            # Eval `callexpr` in Main. We expect a StopException, so catch it.
-            eval_noinfo(Main, callexpr)
-            throw(StorageFailed())   # if we got here, `method` was never called
-        catch err
-            err isa StopException || rethrow(err)
-        end
-    finally
-        # Restore the original method
-        eval_noinfo(method.module, def)
-    end
-    return Rebugger.stack[index]
-end
-
-"""
-    method_capture_from_callee(method, def, index; trunc::Bool=false)
-
-Redefine `method` so that it stores its inputs in `Main.Rebugger.stack[index]`.
+Create a version of `method` that stores its inputs in `Main.Rebugger.stored`.
 For a method
 
     function fcomplex(x::A, y=1, z=""; kw1=3.2) where A<:AbstractArray{T} where T
         <body>
     end
 
-generate a new method
+if `overwrite=false`, this generates a new method
 
-    function fcomplex(x::A, y=1, z=""; kw1=3.2) where A<:AbstractArray{T} where T
-        Main.Rebugger.stack[index] = (fcomplex, (:x, :y, :z, :kw1, :A, :T), deepcopy((x, y, z, kw1, A, T)))
-        <body>
+    function hidden_fcomplex(x::A, y=1, z=""; kw1=3.2) where A<:AbstractArray{T} where T
+        Main.Rebugger.stored[uuid] = Main.Rebugger.Stored(fcomplex, (:x, :y, :z, :kw1, :A, :T), deepcopy((x, y, z, kw1, A, T)))
+        throw(StopException())
     end
 
-or, if `trunc` is true, replace the body with `throw(StopException())`.
+(If a `uuid` already exists for `method` from a previous call to `method_capture_from_callee`,
+it will simply be returned.)
 
-`def` is the (unlowered) expression that defines the method.
+With `overwrite=true`, there are two differences:
+
+- it replaces `fcomplex` rather than defining `hidden_fcomplex`
+- rather than throwing `StopException`, it re-inserts `<body>` after the line performing storage
+
+The returned `uuid` can be used for accessing the stored data.
 """
-function method_capture_from_callee(method, def, index; trunc::Bool=false)
+function method_capture_from_callee(method, def; overwrite::Bool=false)
+    uuid = get(storemap, (method, overwrite), nothing)
+    uuid != nothing && return uuid
     sigr, body = get_signature(def), unquote(funcdef_body(def))
     sigr == nothing && throw(SignatureError(method))
-    sig = convert(Expr, sigr)
-    methname, argnames, kwnames, paramnames = signature_names(sig)
+    sigex = convert(Expr, sigr)
+    methname, argnames, kwnames, paramnames = signature_names(sigex)
     allnames = (argnames..., kwnames..., paramnames...)
     qallnames = QuoteNode.(allnames)
-    storeexpr = :(Main.Rebugger.stack[$index] = ($method, ($(qallnames...),), Main.Rebugger.safe_deepcopy($(allnames...))))
-    capture_body = trunc ? quote
-        $storeexpr
-        throw(Main.Rebugger.StopException())
-    end : quote
+    uuid = uuid1()
+    storeexpr = :(Main.Rebugger.stored[$uuid] = Main.Rebugger.Stored($method, ($(qallnames...),), Main.Rebugger.safe_deepcopy($(allnames...))))
+    capture_body = overwrite ? quote
         $storeexpr
         $body
+    end : quote
+        $storeexpr
+        throw(Main.Rebugger.StopException())
     end
-    capture_function = Expr(:function, sig, capture_body)
-    if index > length(stack)
-        resizestack(index)
-    end
+    capture_name = gensym(methname)
     mod = method.module
-    eval_noinfo(mod, capture_function)
+    capture_function = Expr(:function, overwrite ? sigex : rename_method(sigex, capture_name), capture_body)
+    storefunc[uuid] = Core.eval(mod, capture_function)
+    storemap[(method, overwrite)] = uuid
+    return uuid
+end
+function method_capture_from_callee(method; kwargs...)
+    # Could use a default arg above but this generates a more understandable error message
+    def = get_def(method)
+    def == nothing && throw(DefMissing(method))
+    method_capture_from_callee(method, def; kwargs...)
 end
 
-function generate_let_command(index::Integer, meta = "")
-    method, varnames, varvals = stack[index]
-    argstring = '(' * join(varnames, ", ") * (length(varnames)==1 ? ",)" : ')')
+function generate_let_command(method::Method, uuid::UUID)
+    s = stored[uuid]
+    @assert method == s.method
+    argstring = '(' * join(s.varnames, ", ") * (length(s.varnames)==1 ? ",)" : ')')
     body = convert(Expr, striplines!(deepcopy(funcdef_body(get_def(method)))))
     return """
-        @eval $(method.module) let $argstring = Main.Rebugger.getstack($index)$meta
+        @eval $(method.module) let $argstring = Main.Rebugger.getstored(\"$uuid\")
         $body
         end"""
 end
+function generate_let_command(uuid::UUID)
+    s = stored[uuid]
+    generate_let_command(s.method, uuid)
+end
 
-getstack(index) = safe_deepcopy(Main.Rebugger.stack[index][3]...)
+getstored(uuidstr::AbstractString) = safe_deepcopy(Main.Rebugger.stored[UUID(uuidstr)].varvals...)
 
+kwstasher(; kwargs...) = kwargs
 
 ### Utilities
 
@@ -322,6 +325,21 @@ function signature_names(sigex::ExLike)
 
     return sigex.args[1], tuple(argname.(sigex.args[offset+1:end])...), kwnames, parameternames
 end
+
+function rename_method!(ex::ExLike, name::Symbol)
+    sig = ex.head ∈ (:call, :where) ? ex : get_signature(ex)
+    while isa(sig, ExLike) && sig.head == :where
+        sig = sig.args[1]
+    end
+    sig.head == :call || (dump(ex); throw(ArgumentError(string("expected call expression, got ", ex))))
+    if isa(sig.args[1], Symbol)
+        sig.args[1] = name
+    else
+        throw(ArgumentError(string("expected declaration, got ", ex)))
+    end
+    return ex
+end
+rename_method(ex::ExLike, name::Symbol) = rename_method!(copy(ex), name)
 
 safe_deepcopy(a, args...) = (_deepcopy(a), safe_deepcopy(args...)...)
 safe_deepcopy() = ()
