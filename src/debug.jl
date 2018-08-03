@@ -98,7 +98,7 @@ end
 
 ### Stepping
 
-function stepin!(io)
+function stepin(io)
     @assert Rebugger.stashed[] === nothing
     # Step 1: rewrite the command to stash the call function and its arguments.
     prepare_caller_capture!(io)
@@ -160,7 +160,7 @@ of the call to be placed in `Rebugger.stashed`.
 
 This does the buffer-preparation for *caller* capture.
 For *callee* capture, see [`method_capture_from_callee`](@ref),
-and [`stepin!`](@ref) which puts these two together.
+and [`stepin`](@ref) which puts these two together.
 """
 function prepare_caller_capture!(io)  # for testing, needs to work on a normal IO object
     start = position(io)

@@ -97,7 +97,7 @@ uuidextractor(str) = UUID(match(r"getstored\(\"([a-z0-9\-]+)\"\)", str).captures
                 @test !isempty(idx)
                 print(io, str)
                 seek(io, first(idx)-1)
-                Rebugger.stepin!(io)
+                Rebugger.stepin(io)
             end
 
             str = "RebuggerTesting.snoop0()"
