@@ -53,6 +53,11 @@ function set_uuid!(header::RebugHeader, str::AbstractString)
     set_uuid!(header, uuid)
 end
 
+struct FakePrompt{Buf<:IO}
+    input_buffer::Buf
+end
+LineEdit.mode(p::FakePrompt) = rebug_prompt_ref[]
+
 """
     stepin(s)
 
@@ -116,12 +121,20 @@ end
 function capture_stacktrace(s)
     cmdstring = LineEdit.content(s)
     expr = Meta.parse(cmdstring)
-    capture_stacktrace(expr)
-    for index = 1:length(stack)
-        stackcmd[index] = generate_let_command(index)
+    uuids = capture_stacktrace(expr)
+    io = IOBuffer()
+    buf = FakePrompt(io)
+    hp = mode(s).hist
+    for uuid in uuids
+        println(io, generate_let_command(uuid))
+        REPL.add_history(hp, buf)
+        take!(io)
     end
-    show_current_stackpos(s, length(stackcmd))
-    LineEdit.edit_insert(s, stackcmd[end])
+    if !isempty(uuids)
+        LineEdit.edit_clear(s)
+        LineEdit.edit_insert(s, hp.history[end])
+        set_uuid!(header(s), uuids[end])
+    end
     return nothing
 end
 
@@ -132,52 +145,6 @@ end
 #         p = position(s)
 #     end
 # end
-
-function showinputs(s)
-    callstring = LineEdit.content(s)
-    index, hasid = get_stack_index(callstring)
-    if hasid
-        out_stream = s.current_mode.repl.t.out_stream
-        sz = displaysize(out_stream)
-        stackentry = stack[index]
-        nargs = length(stackentry[2])
-        w = sz[2] ÷ nargs - 2
-        io = IOBuffer()
-        for (name, val) in zip(stackentry[2], stackentry[3])
-            # print(out_stream, '\n')
-            printf_maxsize(print, io, name, "=", val, ", "; maxlines=1, maxchars=w)
-        end
-        print(io, "\n\rjulia> ")
-        s.current_mode.prompt = String(take!(io))
-        LineEdit.refresh_line(s)
-        s.current_mode.prompt = "julia> "
-    end
-    return nothing
-end
-
-
-# function generate_let_command(s, index; metadata::Bool=true)
-#     letcommand = generate_let_command(index; metadata=metadata)
-#     stackcmd[index] = letcommand
-#     LineEdit.edit_clear(s)
-#     LineEdit.edit_insert(s, letcommand)
-# end
-
-function show_current_stackpos(s, index, bonus=0)
-    # Show stacktrace
-    LineEdit.edit_clear(s)
-    header = headerinal(s)
-    print(header, "\r\u1b[K")     # clear the line
-    for _ in 1:index+bonus
-        print(header, "\r\u1b[K\u1b[A")   # move up while clearing line
-    end
-    for i = 1:index
-        stackitem = stack[i]
-        printstyled(header, stackitem[1], '\n'; color=:light_magenta)
-    end
-    return nothing
-end
-
 
 ### REPL mode
 
@@ -241,12 +208,17 @@ function HeaderREPLs.append_keymaps!(keymaps, repl::HeaderREPL{RebugHeader})
     append!(keymaps, kms)
 end
 
+# To get it to parse the UUID whenever we move through the history, we have to specialize
+# this method
+function HeaderREPLs.activate_header(header::RebugHeader, p, s, termbuf, term)
+    str = String(take!(copy(LineEdit.buffer(s))))
+    set_uuid!(header, str)
+end
+
 ## Key bindings
 
 # These work at the `julia>` prompt and the `rebug>` prompt
 const rebugger_modeswitch = Dict{Any,Any}(
-    # F12
-    "\e[24~"   => (s, o...) -> toggle_rebug(s),
     # F5
     "\e[15~"   => (s, o...) -> (capture_stacktrace(s); enter_rebug(s)),
     # F11. Note for `konsole` (KDE) users, F11 means "fullscreen". Turn off in Settings->Configure Shortcuts
