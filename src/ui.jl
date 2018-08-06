@@ -35,14 +35,6 @@ function set_uuid!(header::RebugHeader, uuid::UUID)
     uuid
 end
 
-# function msgs_uuid(str::AbstractString)
-#     m = uuidextractor(str)
-#     uuid = if m isa RegexMatch && length(m.captures) == 1
-#         push!(msgs, m.captures[1])
-#     end
-#     nothing
-# end
-
 function set_uuid!(header::RebugHeader, str::AbstractString)
     m = uuidextractor(str)
     uuid = if m isa RegexMatch && length(m.captures) == 1
@@ -96,28 +88,6 @@ function stepin(s::LineEdit.MIState)
     return nothing
 end
 
-# function stepup(s)
-#     callstring = LineEdit.content(s)
-#     index, hasid = get_stack_index(callstring)
-#     if hasid && index > 1
-#         letcommand = stackcmd[index-1]
-#         show_current_stackpos(s, index-1, 1)
-#         LineEdit.edit_insert(s, letcommand)
-#     end
-#     return nothing
-# end
-
-# function stepdown!(s)
-#     callstring = LineEdit.content(s)
-#     index, hasid = get_stack_index(callstring)
-#     if hasid && index < length(stack)
-#         letcommand = stackcmd[index+1]
-#         show_current_stackpos(s, index+1, -1)
-#         LineEdit.edit_insert(s, letcommand)
-#     end
-#     return nothing
-# end
-
 function capture_stacktrace(s)
     cmdstring = LineEdit.content(s)
     expr = Meta.parse(cmdstring)
@@ -138,13 +108,7 @@ function capture_stacktrace(s)
     return nothing
 end
 
-# function showvalue(s)
-#     callstring = LineEdit.content(s)
-#     index, hasid = get_stack_index(callstring)
-#     if hasid
-#         p = position(s)
-#     end
-# end
+
 
 ### REPL mode
 
