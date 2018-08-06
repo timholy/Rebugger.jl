@@ -193,12 +193,14 @@ function HeaderREPLs.print_header(io::IO, header::RebugHeader)
         if header.current_method != dummymethod
             printstyled(s, header.current_method, '\n'; color=:light_magenta)
         end
-    # TODO: print input values
-    #     for i = 1:blah
-    #         printstyled(io, varname, " = ", varval, '\n'; color=:light_blue)
-    #     end
-    # end
-    # Limit their size though
+        if header.uuid != dummyuuid
+            data = stored[header.uuid]
+            printer(args...) = printstyled(args..., '\n'; color=:light_blue)
+            for (name, val) in zip(data.varnames, data.varvals)
+                # Make sure each only spans one line
+                Revise.printf_maxsize(printer, s, "  ", name, " = ", val; maxlines=1)
+            end
+        end
     end
     seek(iocount, 0)
     header.nlines = countlines(iocount)
