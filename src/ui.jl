@@ -1,4 +1,5 @@
 const rebug_prompt_string = "rebug> "
+const rebug_prompt_ref = Ref{Union{LineEdit.Prompt,Nothing}}(nothing)   # set by __init__
 
 dummy() = nothing
 const dummymethod = first(methods(dummy))
@@ -16,7 +17,7 @@ end
 RebugHeader() = RebugHeader("", "", dummyuuid, dummymethod, 0)
 
 function header(s::LineEdit.MIState)
-    rebug_prompt = find_prompt(s.interface, rebug_prompt_string)
+    rebug_prompt = rebug_prompt_ref[]
     rebug_prompt.repl.header
 end
 
@@ -266,19 +267,7 @@ const rebugger_keys = Dict{Any,Any}(
 ## F1 is "^[OP" (showvalues?), F4 is "^[OS" (showinputs?)
 
 
-function toggle_rebug(s)
-    julia_prompt = find_prompt(s, "julia")
-    rebug_prompt = find_prompt(s, rebug_prompt_string)
-    other_prompt = if LineEdit.mode(s) == julia_prompt
-        rebug_prompt
-    elseif LineEdit.mode(s) == rebug_prompt
-        julia_prompt
-    else
-        return
-    end
-    mode_switch(s, other_prompt)
-end
-enter_rebug(s) = mode_switch(s, find_prompt(s, rebug_prompt_string))
+enter_rebug(s) = mode_switch(s, rebug_prompt_ref[])
 
 function mode_switch(s, other_prompt)
     buf = copy(LineEdit.buffer(s))

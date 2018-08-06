@@ -29,7 +29,8 @@ function __init__()
         sleep(0.1) # for extra safety
         main_repl = Base.active_repl
         repl = HeaderREPL(main_repl, RebugHeader())
-        REPL.setup_interface(repl; extra_repl_keymap=[rebugger_modeswitch, rebugger_keys])
+        interface = REPL.setup_interface(repl; extra_repl_keymap=[rebugger_modeswitch, rebugger_keys])
+        rebug_prompt_ref[] = interface.modes[end]
     end
 end
 
