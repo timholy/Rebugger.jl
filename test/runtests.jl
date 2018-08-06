@@ -101,15 +101,16 @@ uuidextractor(str) = UUID(match(r"getstored\(\"([a-z0-9\-]+)\"\)", str).captures
             end
 
             str = "RebuggerTesting.snoop0()"
-            cmd = run_stepin(str, str)
+            uuidref, cmd = run_stepin(str, str)
             uuid1 = uuidextractor(cmd)
+            @test uuid1 == uuidref
             @test cmd == """
             @eval Main.RebuggerTesting let () = Main.Rebugger.getstored("$uuid1")
             begin
                 snoop1("Spy")
             end
             end"""
-            cmd = run_stepin(cmd, "snoop1")
+            _, cmd = run_stepin(cmd, "snoop1")
             uuid2 = uuidextractor(cmd)
             @test cmd == """
             @eval Main.RebuggerTesting let (word,) = Main.Rebugger.getstored("$uuid2")
@@ -117,7 +118,7 @@ uuidextractor(str) = UUID(match(r"getstored\(\"([a-z0-9\-]+)\"\)", str).captures
                 snoop2(word, "on")
             end
             end"""
-            cmd = run_stepin(cmd, "snoop2")
+            _, cmd = run_stepin(cmd, "snoop2")
             uuid3 = uuidextractor(cmd)
             @test cmd == """
             @eval Main.RebuggerTesting let (word1, word2) = Main.Rebugger.getstored("$uuid3")
@@ -130,7 +131,7 @@ uuidextractor(str) = UUID(match(r"getstored\(\"([a-z0-9\-]+)\"\)", str).captures
             @test Rebugger.getstored(string(uuid3)) == ("Spy", "on")
 
             str = "RebuggerTesting.kwvarargs(1)"
-            cmd = run_stepin(str, str)
+            _, cmd = run_stepin(str, str)
             uuid = uuidextractor(cmd)
             @test cmd == """
             @eval Main.RebuggerTesting let (x, kw1, kwargs) = Main.Rebugger.getstored("$uuid")
@@ -142,7 +143,7 @@ uuidextractor(str) = UUID(match(r"getstored\(\"([a-z0-9\-]+)\"\)", str).captures
             cmd = run_stepin(cmd, "kwvarargs2")
 
             str = "RebuggerTesting.kwvarargs(1; passthrough=false)"
-            cmd = run_stepin(str, str)
+            _, cmd = run_stepin(str, str)
             uuid = uuidextractor(cmd)
             @test cmd == """
             @eval Main.RebuggerTesting let (x, kw1, kwargs) = Main.Rebugger.getstored("$uuid")
@@ -151,7 +152,7 @@ uuidextractor(str) = UUID(match(r"getstored\(\"([a-z0-9\-]+)\"\)", str).captures
             end
             end"""
             @test Rebugger.getstored(string(uuid)) == (1, 1, pairs((passthrough=false,)))
-            cmd = run_stepin(cmd, "kwvarargs2")
+            _, cmd = run_stepin(cmd, "kwvarargs2")
         end
 
         @testset "Capture stacktrace" begin
