@@ -65,6 +65,17 @@ uuidextractor(str) = UUID(match(r"getstored\(\"([a-z0-9\-]+)\"\)", str).captures
             callexpr = Rebugger.prepare_caller_capture!(io)
             @test callexpr == :(setindex!(a, x, 2, 3))
             take!(io)
+
+            # Expressions that go beyond "user intention".
+            # More generally we should support marking, but in the case of && and || it's
+            # handled by lowering, so there is nothing to step into anyway.
+            for cmdstr in ("f1(x) && f2(z)", "f1(x) || f2(z)")
+                print(io, cmdstr)
+                seek(io, 0)
+                callexpr = Rebugger.prepare_caller_capture!(io)
+                @test callexpr == :(f1(x))
+                take!(io)
+            end
         end
 
         @testset "Callee variable capture" begin

@@ -175,6 +175,8 @@ function prepare_caller_capture!(io)  # for testing, needs to work on a normal I
     elseif callexpr.head == :(=) && isa(callexpr.args[1], Expr) && callexpr.args[1].head == :ref
         ref, val = callexpr.args
         callexpr = Expr(:call, :setindex!, ref.args[1], val, ref.args[2:end]...)
+    elseif (callexpr.head == :&& || callexpr.head == :||) && isa(callexpr.args[1], Expr)
+        callexpr = callexpr.args[1]
     end
     callexpr.head == :call || throw(Meta.ParseError("point must be at a call expression, got $callexpr"))
     fname, args = callexpr.args[1], callexpr.args[2:end]
