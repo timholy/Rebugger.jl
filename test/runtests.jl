@@ -3,7 +3,7 @@ using Rebugger: StopException
 using Test, UUIDs
 
 if !isdefined(Main, :RebuggerTesting)
-    Revise.track("testmodule.jl")   # so the source code here gets loaded
+    includet("testmodule.jl")   # so the source code here gets loaded
 end
 
 const empty_kwvarargs = Rebugger.kwstasher()
@@ -55,8 +55,16 @@ uuidextractor(str) = UUID(match(r"getstored\(\"([a-z0-9\-]+)\"\)", str).captures
             @test_throws ErrorException("not caught") run_insertion(str, "foo")
             @test_throws Rebugger.StepException("Rebugger can only step into expressions, got 77") run_insertion("x = 77", "77")
 
-            # getindex and setindex! expressions
+            # Module-scoped calls
             io = IOBuffer()
+            cmdstr = "Scope.func(x, y, z)"
+            print(io, cmdstr)
+            seek(io, 0)
+            callexpr = Rebugger.prepare_caller_capture!(io)
+            @test callexpr == :(Scope.func(x, y, z))
+            take!(io)
+
+            # getindex and setindex! expressions
             cmdstr = "x = a[2,3]"
             print(io, cmdstr)
             seek(io, first(findfirst("a", cmdstr))-1)
@@ -66,7 +74,7 @@ uuidextractor(str) = UUID(match(r"getstored\(\"([a-z0-9\-]+)\"\)", str).captures
 
             cmdstr = "a[2,3] = x"
             print(io, cmdstr)
-            seek(io, first(findfirst("a", cmdstr))-1)
+            seek(io, 0)
             callexpr = Rebugger.prepare_caller_capture!(io)
             @test callexpr == :(setindex!(a, x, 2, 3))
             take!(io)
@@ -121,6 +129,13 @@ uuidextractor(str) = UUID(match(r"getstored\(\"([a-z0-9\-]+)\"\)", str).captures
             @test_throws StopException fc([8,9])
             @test Rebugger.stored[uuid].varnames == (:x,)
             @test Rebugger.stored[uuid].varvals  == ([8,9],)
+
+            # Extensions of functions from other modules
+            m = @which RebuggerTesting.foo()
+            uuid = Rebugger.method_capture_from_callee(m)
+            fc = Rebugger.storefunc[uuid]
+            @test_throws StopException fc()
+            @test Rebugger.stored[uuid].varnames == Rebugger.stored[uuid].varvals == ()
         end
 
         @testset "Step in" begin

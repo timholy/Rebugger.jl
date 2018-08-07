@@ -250,7 +250,7 @@ function method_capture_from_callee(method, def; overwrite::Bool=false)
         $storeexpr
         throw(Main.Rebugger.StopException())
     end
-    capture_name = gensym(methname)
+    capture_name = _gensym(methname)
     mod = method.module
     capture_function = Expr(:function, overwrite ? sigex : rename_method(sigex, capture_name), capture_body)
     storefunc[uuid] = Core.eval(mod, capture_function)
@@ -344,11 +344,7 @@ function rename_method!(ex::ExLike, name::Symbol)
         sig = sig.args[1]
     end
     sig.head == :call || (dump(ex); throw(ArgumentError(string("expected call expression, got ", ex))))
-    if isa(sig.args[1], Symbol)
-        sig.args[1] = name
-    else
-        throw(ArgumentError(string("expected declaration, got ", ex)))
-    end
+    sig.args[1] = name
     return ex
 end
 rename_method(ex::ExLike, name::Symbol) = rename_method!(copy(ex), name)
@@ -368,5 +364,9 @@ function unquote(ex::Expr)
     ex
 end
 unquote(rex::RelocatableExpr) = unquote(convert(Expr, rex))
+
+_gensym(sym::Symbol) = gensym(sym)
+_gensym(q::QuoteNode) = _gensym(q.value)
+_gensym(ex::Expr) = (@assert ex.head == :. && length(ex.args) == 2; _gensym(ex.args[2]))
 
 const notrace = (:error, :throw)

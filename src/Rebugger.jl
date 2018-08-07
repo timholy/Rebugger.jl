@@ -11,6 +11,8 @@ using Revise: ExLike, RelocatableExpr, get_signature, funcdef_body, get_def, str
 using Revise: printf_maxsize
 using HeaderREPLs
 
+const msgs = []  # for debugging. The REPL-magic can sometimes overprint error messages
+
 include("debug.jl")
 include("ui.jl")
 include("deepcopy.jl")

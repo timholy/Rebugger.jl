@@ -14,3 +14,12 @@ kwvarargs(x; kw1=1, kwargs...)  = kwvarargs2(x; kw1=kw1, kwargs...)
 kwvarargs2(x; kw1=0, passthrough=true) = (x, kw1, passthrough)
 
 end
+
+module RBT2
+
+using ..RebuggerTesting
+
+bar(::Int) = 5
+RebuggerTesting.foo() = bar(1)
+
+end
