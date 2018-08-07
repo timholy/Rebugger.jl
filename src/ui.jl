@@ -82,10 +82,25 @@ or can be used for further `stepin` calls.
 """
 function stepin(s::LineEdit.MIState)
     # Add the command we're tracing to the history. That way we can go "up the call stack".
+    pos = position(s)
     cmd = String(take!(copy(LineEdit.buffer(s))))
     add_history(s, cmd)
     # Analyze the command string and step in
-    uuid, letcmd = stepin(LineEdit.buffer(s))
+    local uuid, letcmd
+    try
+        uuid, letcmd = stepin(LineEdit.buffer(s))
+    catch err
+        if err isa StashingFailed
+            repl = rebug_prompt_ref[].repl
+            repl.header.warnmsg = "Execution did not reach point"
+            buf = LineEdit.buffer(s)
+            LineEdit.edit_clear(buf)
+            write(buf, cmd)
+            seek(buf, pos)
+            return nothing
+        end
+        rethrow(err)
+    end
     set_uuid!(header(s), uuid)
     LineEdit.edit_clear(s)
     LineEdit.edit_insert(s, letcmd)
@@ -147,6 +162,8 @@ function HeaderREPLs.print_header(io::IO, header::RebugHeader)
     end
     seek(iocount, 0)
     header.nlines = countlines(iocount)
+    header.warnmsg = ""
+    header.errmsg = ""
 end
 
 HeaderREPLs.nlines(terminal, header::RebugHeader) = header.nlines
