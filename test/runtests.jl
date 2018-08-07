@@ -48,6 +48,23 @@ uuidextractor(str) = UUID(match(r"getstored\(\"([a-z0-9\-]+)\"\)", str).captures
             end
             """
             @test_throws ErrorException("not caught") run_insertion(str, "foo")
+            @test_throws Rebugger.StepException("Rebugger can only step into expressions, got 77") run_insertion("x = 77", "77")
+
+            # getindex and setindex! expressions
+            io = IOBuffer()
+            cmdstr = "x = a[2,3]"
+            print(io, cmdstr)
+            seek(io, first(findfirst("a", cmdstr))-1)
+            callexpr = Rebugger.prepare_caller_capture!(io)
+            @test callexpr == :(getindex(a, 2, 3))
+            take!(io)
+
+            cmdstr = "a[2,3] = x"
+            print(io, cmdstr)
+            seek(io, first(findfirst("a", cmdstr))-1)
+            callexpr = Rebugger.prepare_caller_capture!(io)
+            @test callexpr == :(setindex!(a, x, 2, 3))
+            take!(io)
         end
 
         @testset "Callee variable capture" begin

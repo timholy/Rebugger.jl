@@ -22,6 +22,9 @@ end
 struct SignatureError  <: Exception
     method::Method
 end
+struct StepException   <: Exception
+    msg::String
+end
 
 ### Stacktraces
 
@@ -166,7 +169,14 @@ function prepare_caller_capture!(io)  # for testing, needs to work on a normal I
     start = position(io)
     callstring = content(io, start=>bufend(io))
     callexpr, len = Meta.parse(callstring, 1)
-    (isa(callexpr, Expr) && callexpr.head == :call) || throw(Meta.ParseError("point must be at a call expression, got $callexpr"))
+    isa(callexpr, Expr) || throw(StepException("Rebugger can only step into expressions, got $callexpr"))
+    if callexpr.head == :ref
+        callexpr = Expr(:call, :getindex, callexpr.args...)
+    elseif callexpr.head == :(=) && isa(callexpr.args[1], Expr) && callexpr.args[1].head == :ref
+        ref, val = callexpr.args
+        callexpr = Expr(:call, :setindex!, ref.args[1], val, ref.args[2:end]...)
+    end
+    callexpr.head == :call || throw(Meta.ParseError("point must be at a call expression, got $callexpr"))
     fname, args = callexpr.args[1], callexpr.args[2:end]
     # In the edited callstring separate any kwargs now. They don't affect dispatch.
     kwargs = []
