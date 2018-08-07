@@ -150,7 +150,7 @@ where in the above `^` indicates `position(s)` ("point"), rewrite this as
 
     <some code>
     if x > 0.5
-        Main.Rebugger.stashed[] = (fcomplex, (x, 2))
+        Main.Rebugger.stashed[] = (fcomplex, (x, 2), (kw1=1.1,))
         throw(Rebugger.StopException())
         <more code>
 
