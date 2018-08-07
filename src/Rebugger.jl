@@ -13,6 +13,7 @@ using HeaderREPLs
 
 include("debug.jl")
 include("ui.jl")
+include("deepcopy.jl")
 
 # Set up keys that enter rebug mode from the regular Julia REPL
 # This should be called from your ~/.julia/config/startup.jl file

@@ -13,6 +13,11 @@ uuidextractor(str) = UUID(match(r"getstored\(\"([a-z0-9\-]+)\"\)", str).captures
     id = uuid1()
     @test uuidextractor("vars = getstored(\"$id\") and more stuff") == id
     @testset "Debug core" begin
+        @testset "Deepcopy" begin
+            args = (3.2, rand(3,3), Rebugger, [Rebugger], "hello", sum, (2,3))
+            argc = Rebugger.safe_deepcopy(args...)
+            @test argc == args
+        end
         @testset "Caller buffer capture and insertion" begin
             function run_insertion(str, atstr)
                 RebuggerTesting.cbdata1[] = RebuggerTesting.cbdata2[] = Rebugger.stashed[] = nothing

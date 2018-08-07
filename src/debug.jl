@@ -353,12 +353,6 @@ function rename_method!(ex::ExLike, name::Symbol)
 end
 rename_method(ex::ExLike, name::Symbol) = rename_method!(copy(ex), name)
 
-safe_deepcopy(a, args...) = (_deepcopy(a), safe_deepcopy(args...)...)
-safe_deepcopy() = ()
-
-_deepcopy(a) = deepcopy(a)
-_deepcopy(a::Module) = a
-
 has_no_linfo(sf::Base.StackFrame) = !isa(sf.linfo, Core.MethodInstance)
 
 # Use to re-evaluate an expression without leaving "breadcrumbs" about where
