@@ -81,6 +81,10 @@ This line can be edited and `eval`ed at the REPL to analyze or improve `fcomplex
 or can be used for further `stepin` calls.
 """
 function stepin(s::LineEdit.MIState)
+    # Add the command we're tracing to the history. That way we can go "up the call stack".
+    cmd = String(take!(copy(LineEdit.buffer(s))))
+    add_history(s, cmd)
+    # Analyze the command string and step in
     uuid, letcmd = stepin(LineEdit.buffer(s))
     set_uuid!(header(s), uuid)
     LineEdit.edit_clear(s)
@@ -108,7 +112,13 @@ function capture_stacktrace(s)
     return nothing
 end
 
-
+function add_history(s, str::AbstractString)
+    io = IOBuffer()
+    buf = FakePrompt(io)
+    hp = mode(s).hist
+    println(io, str)
+    REPL.add_history(hp, buf)
+end
 
 ### REPL mode
 
