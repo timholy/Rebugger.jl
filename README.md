@@ -21,6 +21,28 @@ Documentation is sparse right now. To get you started, there are two important k
 - F11 maps to "step in"
 - F5 maps to "capture stacktrace" (for commands that throw an error)
 
+To activate these keybindings, your `~/.julia/config/startup.jl` file should look something like this:
+
+```julia
+try
+    @eval using Revise
+    # Turn on Revise's file-watching behavior
+    Revise.async_steal_repl_backend()
+catch
+    @warn "Could not load Revise."
+end
+
+try
+    @eval using Rebugger
+    atreplinit(Rebugger.repl_init)
+catch
+    @warn "Could not turn on Rebugger key bindings."
+end
+```
+
+Starting Rebugger from a running Julia session will not do anything useful.
+**Rebugger's key bindings work only if you start it from your `startup.jl` file.**
+
 ## Stepping in
 
 Select the expression you want to step into by positioning "point" (your cursor)
