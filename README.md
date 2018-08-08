@@ -100,6 +100,8 @@ There are *many*. A few selected items:
   (For brave souls who want to help fix these,
   see [HeaderREPLs.jl](https://github.com/timholy/HeaderREPLs.jl))
 - You cannot step into methods defined at the REPL.
+- Stacktraces currently don't capture from methods that start with `#`.
+  However, once you get to one of their callers you can step into them.
 - Rebugger runs best in Julia 1.0. While it should run on Julia 0.7,
   a local-scope deprecation can cause some
   problems. If you want 0.7 because of its deprecation warnings and are comfortable
