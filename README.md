@@ -13,7 +13,7 @@ Neverthess it may be of net benefit for some users.
 The name "Rebugger" has 3 meanings:
 
 - it is a REPL-based debugger (more on that below)
-- it is the [Revise]()-based debugger
+- it is the [Revise](https://github.com/timholy/Revise.jl)-based debugger
 - it supports repeated-execution debugging
 
 Documentation is sparse right now. To get you started, there are two important keybinds:
