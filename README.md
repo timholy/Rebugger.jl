@@ -78,3 +78,9 @@ There are *many*. A few selected items:
   (For brave souls who want to help fix these,
   see [HeaderREPLs.jl](https://github.com/timholy/HeaderREPLs.jl))
 - You cannot step into methods defined at the REPL.
+- Rebugger runs best in Julia 1.0. While it should run on Julia 0.7,
+  a local-scope deprecation can cause some
+  problems. If you want 0.7 because of its deprecation warnings and are comfortable
+  building Julia, consider building it at commit
+  f08f3b668d222042425ce20a894801b385c2b1e2, which removed the local-scope deprecation
+  but leaves most of the other deprecation warnings from 0.7 still in place.
