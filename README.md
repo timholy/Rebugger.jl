@@ -16,12 +16,16 @@ The name "Rebugger" has 3 meanings:
 - it is the [Revise](https://github.com/timholy/Revise.jl)-based debugger
 - it supports repeated-execution debugging
 
-Documentation is sparse right now. To get you started, there are two important keybinds:
+## Installation
 
-- F11 maps to "step in"
-- F5 maps to "capture stacktrace" (for commands that throw an error)
+For now, you have to install two packages:
 
-To activate these keybindings, your `~/.julia/config/startup.jl` file should look something like this:
+```julia
+(v1.0) pkg> add https://github.com/timholy/HeaderREPLs.jl.git
+(v1.0) pkg> add https://github.com/timholy/Rebugger.jl.git
+```
+
+Also you **must** add something similar to the following lines to your `.julia/config/startup.jl` file:
 
 ```julia
 try
@@ -40,10 +44,21 @@ catch
 end
 ```
 
-Starting Rebugger from a running Julia session will not do anything useful.
-**Rebugger's key bindings work only if you start it from your `startup.jl` file.**
+The reason is that Rebugger adds some custom key bindings to the REPL, and **adding new
+key bindings works only if it is done before the REPL starts.**
 
-## Stepping in
+Starting Rebugger from a running Julia session will not do anything useful.
+
+## Using Rebugger
+
+Documentation is sparse right now. To get you started, there are two important keybindings:
+
+- F11 maps to "step in": NOTE you may have to disable F11 from meaning "fullscreen" in your desktop settings
+- F5 maps to "capture stacktrace" (for commands that throw an error)
+
+**NOTE**: in the future we are likely to switch F11 to Ctrl-Enter, but use F11 for now.
+
+### Stepping in
 
 Select the expression you want to step into by positioning "point" (your cursor)
 at the desired location in the command line:
@@ -67,7 +82,7 @@ Note the yellow/orange line: this is a warning message, and you should pay atten
 In this case the call actually enters `show_vector`; if you moved your cursor there,
 you could trace execution more completely.
 
-## Capturing stacktraces
+### Capturing stacktraces
 
 Choose a command that throws an error, for example:
 
@@ -108,3 +123,4 @@ There are *many*. A few selected items:
   building Julia, consider building it at commit
   f08f3b668d222042425ce20a894801b385c2b1e2, which removed the local-scope deprecation
   but leaves most of the other deprecation warnings from 0.7 still in place.
+- For now you can't step into constructors (it tries to step into `(::Type{T})`)
