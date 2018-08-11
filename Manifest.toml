@@ -18,7 +18,6 @@ git-tree-sha1 = "97089a6504e2fd5bfba5a33e0e6bd7be80898b5e"
 repo-rev = "master"
 repo-url = "https://github.com/timholy/HeaderREPLs.jl"
 uuid = "0c95fe84-97b8-11e8-34fd-7ba5e722bbed"
-version = "0.1.0"
 
 [[InteractiveUtils]]
 deps = ["LinearAlgebra", "Markdown"]
