@@ -124,3 +124,5 @@ There are *many*. A few selected items:
   f08f3b668d222042425ce20a894801b385c2b1e2, which removed the local-scope deprecation
   but leaves most of the other deprecation warnings from 0.7 still in place.
 - For now you can't step into constructors (it tries to step into `(::Type{T})`)
+- If you start `dev`ing a package that you had already loaded, you need to restart
+  your session (https://github.com/timholy/Revise.jl/issues/146)
