@@ -5,6 +5,8 @@ os:
   - linux
   - osx
 julia:
+  - 0.7
+  - 1.0
   - nightly
 notifications:
   email: false
@@ -25,14 +27,22 @@ git:
 #before_script: # homebrew for mac
 #  - if [ $TRAVIS_OS_NAME = osx ]; then brew install gcc; fi
 
+before_script:
+  - julia -e 'using Pkg;
+              Pkg.clone("https://github.com/timholy/HeaderREPLs.jl")'
+
 ## uncomment the following lines to override the default test script
-script:
-  - julia -e 'using Pkg; Pkg.clone(pwd()); Pkg.build("Rebugger"); Pkg.test("Rebugger"; coverage=true)'
-  - JULIA_REVISE_POLL=1 julia --code-coverage -e 'using Pkg; include(Pkg.dir("Rebugger", "test", "polling.jl"))'
+# Note HeaderREPLs isn't registered yet
+# script:
+#   - julia -e 'using Pkg;
+#               Pkg.clone("https://github.com/timholy/HeaderREPLs.jl");
+#               Pkg.clone(pwd());
+#               Pkg.build("Rebugger");
+#               Pkg.test("Rebugger"; coverage=true)'
 
 after_script:  # TODO: change to after_success once https://github.com/JuliaLang/julia/issues/28306 is fixed
   # push coverage results to Codecov
-  - julia -e 'using Pkg; cd(Pkg.dir("Rebugger")); Pkg.add("Coverage"); using Coverage; Codecov.submit(Codecov.process_folder())'
+  - julia -e 'using Pkg, Rebugger; cd(joinpath(pathof(Rebugger), "..", "..")); Pkg.add("Coverage"); using Coverage; Codecov.submit(Codecov.process_folder())'
   # Update the documentation
-  - julia -e 'Pkg.add("Documenter")'
-  - julia -e 'ENV["DOCUMENTER_DEBUG"] = "true"; cd(Pkg.dir("Rebugger")); include(joinpath("docs", "make.jl"))'
+  - julia -e 'using Pkg; Pkg.add("Documenter")'
+  - julia -e 'ENV["DOCUMENTER_DEBUG"] = "true"; cd(joinpath(pathof(Rebugger), "..", "..")); include(joinpath("docs", "make.jl"))'
