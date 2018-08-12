@@ -173,8 +173,15 @@ and [`stepin`](@ref) which puts these two together.
 function prepare_caller_capture!(io)  # for testing, needs to work on a normal IO object
     start = position(io)
     callstring = content(io, start=>bufend(io))
-    callexpr, len = Meta.parse(callstring, 1)
+    callexpr, len = Meta.parse(callstring, 1; raise=false)
     isa(callexpr, Expr) || throw(StepException("Rebugger can only step into expressions, got $callexpr"))
+    if callexpr.head == :error
+        iend = len
+        for i = 1:2
+            iend = prevind(callstring, iend)
+        end
+        callexpr, len = Meta.parse(callstring[1:iend], 1)
+    end
     if callexpr.head == :ref
         callexpr = Expr(:call, :getindex, callexpr.args...)
     elseif callexpr.head == :(=) && isa(callexpr.args[1], Expr) && callexpr.args[1].head == :ref

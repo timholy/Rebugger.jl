@@ -89,6 +89,14 @@ uuidextractor(str) = UUID(match(r"getstored\(\"([a-z0-9\-]+)\"\)", str).captures
                 @test callexpr == :(f1(x))
                 take!(io)
             end
+
+            # issue #5
+            cmdstr = "abs(abs(x))"
+            print(io, cmdstr)
+            seek(io, 4)
+            callexpr = Rebugger.prepare_caller_capture!(io)
+            @test callexpr == :(abs(x))
+            take!(io)
         end
 
         @testset "Callee variable capture" begin
