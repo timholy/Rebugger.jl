@@ -1,6 +1,7 @@
 using Rebugger
 using Rebugger: StopException
 using Test, UUIDs
+using Revise
 
 if !isdefined(Main, :RebuggerTesting)
     includet("testmodule.jl")   # so the source code here gets loaded
