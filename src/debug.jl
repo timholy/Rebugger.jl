@@ -118,12 +118,17 @@ function stepin(io)
     # that captures all of the callee's inputs. (This allows us to capture default arguments,
     # keyword arguments, and type parameters.)
     method = which(f, Base.typesof(args...))
-    uuid = get(storemap, (method, true), nothing)
+    uuid = get(storemap, (method, false), nothing)
     if uuid === nothing
-        uuid = method_capture_from_callee(method)
+        uuid = method_capture_from_callee(method; overwrite=false)
     end
     # Step 3: execute the command to store the inputs.
     fcapture = storefunc[uuid]
+    tv, decls = Base.arg_decl_parts(method)
+    if !isempty(decls[1][1])
+        # This is a call-overloaded method, prepend the calling object
+        args = (f, args...)
+    end
     try
         Base.invokelatest(fcapture, args...; kwargs...)
         throw(StorageFailed())   # this should never happen
@@ -239,6 +244,22 @@ function method_capture_from_callee(method, def; overwrite::Bool=false)
     sigr == nothing && throw(SignatureError(method))
     sigex = convert(Expr, sigr)
     methname, argnames, kwnames, paramnames = signature_names(sigex)
+    # Check for call-overloading method, e.g., (obj::ObjType)(x, y...) = <body>
+    callerobj = nothing
+    if methname isa Expr && methname.head == :(::)
+        @assert length(methname.args) == 2
+        callerobj = methname
+        argnames = (methname.args[1], argnames...)
+        methname = methname.args[2]
+        if methname isa Expr
+            if methname.head == :curly
+                methname = methname.args[1]
+            else
+                dump(methname)
+                error("unexpected call-overloading type")
+            end
+        end
+    end
     allnames = (argnames..., kwnames..., paramnames...)
     qallnames = QuoteNode.(allnames)
     uuid = uuid1()
@@ -252,7 +273,7 @@ function method_capture_from_callee(method, def; overwrite::Bool=false)
     end
     capture_name = _gensym(methname)
     mod = method.module
-    capture_function = Expr(:function, overwrite ? sigex : rename_method(sigex, capture_name), capture_body)
+    capture_function = Expr(:function, overwrite ? sigex : rename_method(sigex, capture_name, callerobj), capture_body)
     storefunc[uuid] = Core.eval(mod, capture_function)
     storemap[(method, overwrite)] = uuid
     return uuid
@@ -338,16 +359,20 @@ function signature_names(sigex::ExLike)
     return sigex.args[1], tuple(argname.(sigex.args[offset+1:end])...), kwnames, parameternames
 end
 
-function rename_method!(ex::ExLike, name::Symbol)
+function rename_method!(ex::ExLike, name::Symbol, callerobj)
     sig = ex.head ∈ (:call, :where) ? ex : get_signature(ex)
     while isa(sig, ExLike) && sig.head == :where
         sig = sig.args[1]
     end
     sig.head == :call || (dump(ex); throw(ArgumentError(string("expected call expression, got ", ex))))
     sig.args[1] = name
+    if callerobj != nothing
+        # Call overloading, add an argument
+        sig.args = [sig.args[1]; callerobj; sig.args[2:end]]
+    end
     return ex
 end
-rename_method(ex::ExLike, name::Symbol) = rename_method!(copy(ex), name)
+rename_method(ex::ExLike, name::Symbol, callerobj) = rename_method!(copy(ex), name, callerobj)
 
 has_no_linfo(sf::Base.StackFrame) = !isa(sf.linfo, Core.MethodInstance)
 
