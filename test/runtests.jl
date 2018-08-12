@@ -1,6 +1,6 @@
 using Rebugger
 using Rebugger: StopException
-using Test, UUIDs
+using Test, UUIDs, InteractiveUtils
 using Revise
 
 if !isdefined(Main, :RebuggerTesting)
