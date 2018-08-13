@@ -1,7 +1,7 @@
 # Core debugging logic.
 # Hopefully someday much of this will be replaced by Gallium.
 
-const VarnameType = Tuple{Vararg{Symbol}}
+const VarnameType = Tuple{Vararg{Union{Symbol,Expr}}}  # Expr covers `foo(x, (a,b), y)` destructured-tuple signatures
 struct Stored
     method::Method
     varnames::VarnameType
@@ -344,6 +344,7 @@ function signature_names(sigex::ExLike)
         end
         ex.head == :macrocall && return argname(ex.args[3])  # @nospecialize
         ex.head == :kw && return argname(ex.args[1])  # default arguments
+        ex.head == :tuple && return ex    # tuple-destructuring argument
         ex.head == :(::) || throw(ArgumentError(string("expected :(::) expression, got ", ex)))
         arg = ex.args[1]
         if isa(arg, Expr) && arg.head == :curly && arg.args[1] == :Type

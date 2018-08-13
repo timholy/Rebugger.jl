@@ -230,6 +230,19 @@ uuidextractor(str) = UUID(match(r"getstored\(\"([a-z0-9\-]+)\"\)", str).captures
             end
             end"""
             @test Rebugger.getstored(string(uuid)) == (RebuggerTesting.hv_test, "hi")
+
+            # Step in to methods that do tuple-destructuring of arguments
+            str = "RebuggerTesting.destruct(1, (2,3), 4)"
+            @test eval(Meta.parse(str)) == 2
+            _, cmd = run_stepin(str, str)
+            uuid = uuidextractor(cmd)
+            @test cmd == """
+            @eval Main.RebuggerTesting let (x, (a, b), y) = Main.Rebugger.getstored("$uuid")
+            begin
+                a
+            end
+            end"""
+            @test Rebugger.getstored(string(uuid)) == (1, (2,3), 4)
         end
 
         @testset "Capture stacktrace" begin
