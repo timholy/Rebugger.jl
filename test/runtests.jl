@@ -10,6 +10,9 @@ end
 const empty_kwvarargs = Rebugger.kwstasher()
 uuidextractor(str) = UUID(match(r"getstored\(\"([a-z0-9\-]+)\"\)", str).captures[1])
 
+struct ErrorsOnShow end
+Base.show(io::IO, ::ErrorsOnShow) = throw(ArgumentError("no show"))
+
 @testset "Rebugger" begin
     id = uuid1()
     @test uuidextractor("vars = getstored(\"$id\") and more stuff") == id
@@ -260,6 +263,26 @@ uuidextractor(str) = UUID(match(r"getstored\(\"([a-z0-9\-]+)\"\)", str).captures
             @test Rebugger.stored[uuids[3]].varvals == ("Spy", "on")
             @test Rebugger.stored[uuids[4]].varvals == ("Spy", "on", "arguments", "simply", empty_kwvarargs, String)
             @test_throws ErrorException("oops") RebuggerTesting.snoop0()
+        end
+    end
+
+    @testset "User interface" begin
+        @testset "Printing header" begin
+            h = Rebugger.RebugHeader()
+            h.uuid = uuid = uuid1()
+            meth = @which RebuggerTesting.foo(1,2)
+            h.current_method = meth
+            Rebugger.stored[uuid] = Rebugger.Stored(meth, (:x, :y), (1, ErrorsOnShow()))
+            h.warnmsg = "This is a warning"
+            h.errmsg  = "You will not have a second chance"
+            io = IOBuffer()
+            Rebugger.print_header(io, h)
+            str = String(take!(io))
+            @test startswith(str, """
+            This is a warning
+            You will not have a second chance
+            foo(x, y) in Main.RebuggerTesting at """) # skip the "upper" part of the file location
+            @test endswith(str, "testmodule.jl:7\n  x = 1\n  y errors in its show method")
         end
     end
 end
