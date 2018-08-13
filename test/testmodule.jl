@@ -13,6 +13,8 @@ snoop3(word1, word2, word3::T; adv="simply", morekws...) where T = error("oops")
 kwvarargs(x; kw1=1, kwargs...)  = kwvarargs2(x; kw1=kw1, kwargs...)
 kwvarargs2(x; kw1=0, passthrough=true) = (x, kw1, passthrough)
 
+destruct(x, (a, b), y) = a
+
 struct HasValue
     x::Float64
 end
