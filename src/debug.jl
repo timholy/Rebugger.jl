@@ -180,7 +180,12 @@ function prepare_caller_capture!(io)  # for testing, needs to work on a normal I
         for i = 1:2
             iend = prevind(callstring, iend)
         end
-        callexpr, len = Meta.parse(callstring[1:iend], 1)
+        callstring = callstring[1:iend]
+        callexpr, len = Meta.parse(callstring, 1)
+    end
+    if callexpr.head == :tuple && !(startswith(callstring, "tuple") || startswith(callstring, "("))
+        # An expression like foo(bar(x)..., 1) where point is positioned at bar
+        callexpr = callexpr.args[1]
     end
     if callexpr.head == :ref
         callexpr = Expr(:call, :getindex, callexpr.args...)
@@ -188,6 +193,8 @@ function prepare_caller_capture!(io)  # for testing, needs to work on a normal I
         ref, val = callexpr.args
         callexpr = Expr(:call, :setindex!, ref.args[1], val, ref.args[2:end]...)
     elseif (callexpr.head == :&& || callexpr.head == :||) && isa(callexpr.args[1], Expr)
+        callexpr = callexpr.args[1]
+    elseif callexpr.head == :...
         callexpr = callexpr.args[1]
     end
     callexpr.head == :call || throw(Meta.ParseError("point must be at a call expression, got $callexpr"))
