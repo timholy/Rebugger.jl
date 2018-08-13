@@ -246,6 +246,33 @@ Base.show(io::IO, ::ErrorsOnShow) = throw(ArgumentError("no show"))
             end
             end"""
             @test Rebugger.getstored(string(uuid)) == (1, (2,3), 4)
+
+            # Step in to a broadcast call
+            str = "sum.([[1,2], (3,5)])"
+            uuid, cmd = run_stepin(str, str)
+            s = Rebugger.stored[uuid]
+            @test s.method.name == :broadcast
+            @test cmd == """
+            @eval Base.Broadcast let (f, As, Tf) = Main.Rebugger.getstored("$uuid")
+            begin
+                materialize(broadcasted(f, As...))
+            end
+            end"""
+            @test Rebugger.getstored(string(uuid)) == (sum, (Any[[1,2], (3,5)],), typeof(sum))
+            Core.eval(Main, Meta.parse(cmd)) == [3,8]
+
+            str = "max.([1,5], [2,-3])"
+            uuid, cmd = run_stepin(str, str)
+            s = Rebugger.stored[uuid]
+            @test s.method.name == :broadcast
+            @test cmd == """
+            @eval Base.Broadcast let (f, As, Tf) = Main.Rebugger.getstored("$uuid")
+            begin
+                materialize(broadcasted(f, As...))
+            end
+            end"""
+            @test Rebugger.getstored(string(uuid)) == (max, ([1,5], [2,-3]), typeof(max))
+            Core.eval(Main, Meta.parse(cmd)) == [2,5]
         end
 
         @testset "Capture stacktrace" begin
