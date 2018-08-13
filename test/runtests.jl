@@ -1,6 +1,7 @@
 using Rebugger
 using Rebugger: StopException
-using Test, UUIDs
+using Test, UUIDs, InteractiveUtils
+using Revise
 
 if !isdefined(Main, :RebuggerTesting)
     includet("testmodule.jl")   # so the source code here gets loaded
@@ -89,6 +90,14 @@ uuidextractor(str) = UUID(match(r"getstored\(\"([a-z0-9\-]+)\"\)", str).captures
                 @test callexpr == :(f1(x))
                 take!(io)
             end
+
+            # issue #5
+            cmdstr = "abs(abs(x))"
+            print(io, cmdstr)
+            seek(io, 4)
+            callexpr = Rebugger.prepare_caller_capture!(io)
+            @test callexpr == :(abs(x))
+            take!(io)
         end
 
         @testset "Callee variable capture" begin
@@ -201,6 +210,18 @@ uuidextractor(str) = UUID(match(r"getstored\(\"([a-z0-9\-]+)\"\)", str).captures
             end"""
             @test Rebugger.getstored(string(uuid)) == (1, 1, pairs((passthrough=false,)))
             _, cmd = run_stepin(cmd, "kwvarargs2")
+
+            # Step in to call-overloading methods
+            str = "RebuggerTesting.hv_test(\"hi\")"
+            _, cmd = run_stepin(str, str)
+            uuid = uuidextractor(cmd)
+            @test cmd == """
+            @eval Main.RebuggerTesting let (hv, str) = Main.Rebugger.getstored("$uuid")
+            begin
+                hv.x
+            end
+            end"""
+            @test Rebugger.getstored(string(uuid)) == (RebuggerTesting.hv_test, "hi")
         end
 
         @testset "Capture stacktrace" begin
