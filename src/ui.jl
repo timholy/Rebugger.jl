@@ -156,7 +156,11 @@ function HeaderREPLs.print_header(io::IO, header::RebugHeader)
             printer(args...) = printstyled(args..., '\n'; color=:light_blue)
             for (name, val) in zip(data.varnames, data.varvals)
                 # Make sure each only spans one line
-                Revise.printf_maxsize(printer, s, "  ", name, " = ", val; maxlines=1, maxchars=ds[2]-1)
+                try
+                    Revise.printf_maxsize(printer, s, "  ", name, " = ", val; maxlines=1, maxchars=ds[2]-1)
+                catch # don't error just because a print method is borked
+                    printstyled(s, "  ", name, " errors in its show method"; color=:red)
+                end
             end
         end
     end

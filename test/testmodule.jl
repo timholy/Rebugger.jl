@@ -3,6 +3,7 @@ module RebuggerTesting
 const cbdata1 = Ref{Any}(nothing)
 const cbdata2 = Ref{Any}(nothing)
 
+# Do not alter the line number at which `foo` occurs
 foo(x, y) = nothing
 
 snoop0()             = snoop1("Spy")

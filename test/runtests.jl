@@ -10,6 +10,9 @@ end
 const empty_kwvarargs = Rebugger.kwstasher()
 uuidextractor(str) = UUID(match(r"getstored\(\"([a-z0-9\-]+)\"\)", str).captures[1])
 
+struct ErrorsOnShow end
+Base.show(io::IO, ::ErrorsOnShow) = throw(ArgumentError("no show"))
+
 @testset "Rebugger" begin
     id = uuid1()
     @test uuidextractor("vars = getstored(\"$id\") and more stuff") == id
@@ -243,6 +246,33 @@ uuidextractor(str) = UUID(match(r"getstored\(\"([a-z0-9\-]+)\"\)", str).captures
             end
             end"""
             @test Rebugger.getstored(string(uuid)) == (1, (2,3), 4)
+
+            # Step in to a broadcast call
+            str = "sum.([[1,2], (3,5)])"
+            uuid, cmd = run_stepin(str, str)
+            s = Rebugger.stored[uuid]
+            @test s.method.name == :broadcast
+            @test cmd == """
+            @eval Base.Broadcast let (f, As, Tf) = Main.Rebugger.getstored("$uuid")
+            begin
+                materialize(broadcasted(f, As...))
+            end
+            end"""
+            @test Rebugger.getstored(string(uuid)) == (sum, (Any[[1,2], (3,5)],), typeof(sum))
+            Core.eval(Main, Meta.parse(cmd)) == [3,8]
+
+            str = "max.([1,5], [2,-3])"
+            uuid, cmd = run_stepin(str, str)
+            s = Rebugger.stored[uuid]
+            @test s.method.name == :broadcast
+            @test cmd == """
+            @eval Base.Broadcast let (f, As, Tf) = Main.Rebugger.getstored("$uuid")
+            begin
+                materialize(broadcasted(f, As...))
+            end
+            end"""
+            @test Rebugger.getstored(string(uuid)) == (max, ([1,5], [2,-3]), typeof(max))
+            Core.eval(Main, Meta.parse(cmd)) == [2,5]
         end
 
         @testset "Capture stacktrace" begin
@@ -260,6 +290,26 @@ uuidextractor(str) = UUID(match(r"getstored\(\"([a-z0-9\-]+)\"\)", str).captures
             @test Rebugger.stored[uuids[3]].varvals == ("Spy", "on")
             @test Rebugger.stored[uuids[4]].varvals == ("Spy", "on", "arguments", "simply", empty_kwvarargs, String)
             @test_throws ErrorException("oops") RebuggerTesting.snoop0()
+        end
+    end
+
+    @testset "User interface" begin
+        @testset "Printing header" begin
+            h = Rebugger.RebugHeader()
+            h.uuid = uuid = uuid1()
+            meth = @which RebuggerTesting.foo(1,2)
+            h.current_method = meth
+            Rebugger.stored[uuid] = Rebugger.Stored(meth, (:x, :y), (1, ErrorsOnShow()))
+            h.warnmsg = "This is a warning"
+            h.errmsg  = "You will not have a second chance"
+            io = IOBuffer()
+            Rebugger.print_header(io, h)
+            str = String(take!(io))
+            @test startswith(str, """
+            This is a warning
+            You will not have a second chance
+            foo(x, y) in Main.RebuggerTesting at """) # skip the "upper" part of the file location
+            @test endswith(str, "testmodule.jl:7\n  x = 1\n  y errors in its show method")
         end
     end
 end

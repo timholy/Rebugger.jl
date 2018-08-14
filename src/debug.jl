@@ -197,8 +197,13 @@ function prepare_caller_capture!(io)  # for testing, needs to work on a normal I
     elseif callexpr.head == :...
         callexpr = callexpr.args[1]
     end
-    callexpr.head == :call || throw(Meta.ParseError("point must be at a call expression, got $callexpr"))
-    fname, args = callexpr.args[1], callexpr.args[2:end]
+    # Must be a call or broadcast
+    ((callexpr.head == :call) | (callexpr.head == :.)) || throw(Meta.ParseError("point must be at a call expression, got $callexpr"))
+    if callexpr.head == :call
+        fname, args = callexpr.args[1], callexpr.args[2:end]
+    else
+        fname, args = :broadcast, [callexpr.args[1], callexpr.args[2].args...]
+    end
     # In the edited callstring separate any kwargs now. They don't affect dispatch.
     kwargs = []
     if length(args) >= 1 && isa(args[1], Expr) && args[1].head == :parameters
