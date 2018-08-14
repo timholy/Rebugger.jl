@@ -138,39 +138,38 @@ end
 ### REPL mode
 
 function HeaderREPLs.print_header(io::IO, header::RebugHeader)
-    nlines = 0
-    iocount = IOBuffer()  # for counting lines
-    for s in (io, IOContext(iocount, :displaysize => displaysize()))
-        if !isempty(header.warnmsg)
-            printstyled(s, header.warnmsg, '\n'; color=Base.warn_color())
-        end
-        if !isempty(header.errmsg)
-            printstyled(s, header.errmsg, '\n'; color=Base.error_color())
-        end
-        if header.current_method != dummymethod
-            printstyled(s, header.current_method, '\n'; color=:light_magenta)
-        end
-        if header.uuid != dummyuuid
-            data = stored[header.uuid]
-            ds = displaysize(io)
-            printer(args...) = printstyled(args..., '\n'; color=:light_blue)
-            for (name, val) in zip(data.varnames, data.varvals)
-                # Make sure each only spans one line
-                try
-                    Revise.printf_maxsize(printer, s, "  ", name, " = ", val; maxlines=1, maxchars=ds[2]-1)
-                catch # don't error just because a print method is borked
-                    printstyled(s, "  ", name, " errors in its show method"; color=:red)
+    if header.nlines == 0
+        iocount = IOBuffer()  # for counting lines
+        for s in (io, iocount)
+            if !isempty(header.warnmsg)
+                printstyled(s, header.warnmsg, '\n'; color=Base.warn_color())
+            end
+            if !isempty(header.errmsg)
+                printstyled(s, header.errmsg, '\n'; color=Base.error_color())
+            end
+            if header.current_method != dummymethod
+                printstyled(s, header.current_method, '\n'; color=:light_magenta)
+            end
+            if header.uuid != dummyuuid
+                data = stored[header.uuid]
+                ds = displaysize(io)
+                printer(args...) = printstyled(args..., '\n'; color=:light_blue)
+                for (name, val) in zip(data.varnames, data.varvals)
+                    # Make sure each only spans one line
+                    try
+                        Revise.printf_maxsize(printer, s, "  ", name, " = ", val; maxlines=1, maxchars=ds[2]-1)
+                    catch # don't error just because a print method is borked
+                        printstyled(s, "  ", name, " errors in its show method"; color=:red)
+                    end
                 end
             end
         end
+        header.nlines = count_display_lines(iocount, displaysize(io))
+        header.warnmsg = ""
+        header.errmsg = ""
     end
-    seek(iocount, 0)
-    header.nlines = countlines(iocount)
-    header.warnmsg = ""
-    header.errmsg = ""
+    return nothing
 end
-
-HeaderREPLs.nlines(terminal, header::RebugHeader) = header.nlines
 
 function HeaderREPLs.setup_prompt(repl::HeaderREPL{RebugHeader}, hascolor::Bool)
     julia_prompt = find_prompt(repl.interface, "julia")
