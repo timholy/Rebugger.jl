@@ -18,12 +18,17 @@ struct StashingFailed  <: Exception end   # stashing saves the function and argu
 struct StorageFailed   <: Exception end   # storage puts callee values into `stored` (lasts until `stored` is cleared)
 struct DefMissing      <: Exception
     method::Method
+    exception
 end
 struct SignatureError  <: Exception
     method::Method
 end
 struct StepException   <: Exception
     msg::String
+end
+struct EvalException   <: Exception
+    exprstring
+    exception
 end
 
 ### Stacktraces
@@ -110,7 +115,10 @@ function stepin(io)
         Core.eval(Main, capexpr)
         throw(StashingFailed())
     catch err
-        err isa StopException || rethrow(err)
+        err isa StashingFailed && rethrow(err)
+        if !(err isa StopException)
+            throw(EvalException(content(io), err))
+        end
     end
     f, args, kwargs = Rebugger.stashed[]
     Rebugger.stashed[] = nothing
@@ -299,8 +307,12 @@ function method_capture_from_callee(method, def; overwrite::Bool=false)
 end
 function method_capture_from_callee(method; kwargs...)
     # Could use a default arg above but this generates a more understandable error message
-    def = get_def(method)
-    def == nothing && throw(DefMissing(method))
+    try
+        def = get_def(method)
+    catch err
+        throw(DefMissing(method, err))
+    end
+    def == nothing && throw(DefMissing(method, nothing))
     method_capture_from_callee(method, def; kwargs...)
 end
 

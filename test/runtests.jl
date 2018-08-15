@@ -313,3 +313,7 @@ Base.show(io::IO, ::ErrorsOnShow) = throw(ArgumentError("no show"))
         end
     end
 end
+
+# TODO when I figure out how to test the REPL ui
+# Try stepping in to Plots.histogram(randn(1000))    # issue #3, Plots is listed as the module but the file is in RecipesBase
+# Try the same except position point at the beginning of histogram rather than Plots (or really any partial expression)
