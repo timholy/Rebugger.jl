@@ -33,6 +33,103 @@ end
 
 ### Stacktraces
 
+
+"""
+    r = linerange(expr, offset=0)
+
+Compute the range of lines occupied by `expr`.
+Returns `nothing` if no line statements can be found.
+"""
+function linerange(def::ExLike, offset=0)
+    start, haslinestart = findline(def, identity)
+    stop, haslinestop  = findline(def, Iterators.reverse)
+    (haslinestart & haslinestop) && return (start+offset):(stop+offset)
+    return nothing
+end
+
+function findline(ex, order)
+    ex.head == :line && return ex.args[1], true
+    for a in order(ex.args)
+        a isa LineNumberNode && return a.line, true
+        if a isa ExLike
+            ln, hasline = findline(a, order)
+            hasline && return ln, true
+        end
+    end
+    return 0, false
+end
+
+"""
+    usrtrace, defs = pregenerated_stacktrace(trace, topname=:eval_noinfo)
+
+Generate a list of methods `usrtrace` and their corresponding definition-expressions `defs`
+from a stacktrace.
+Not all methods can be looked up, but this attempts to resolve, e.g., keyword-handling methods
+and so on.
+"""
+function pregenerated_stacktrace(trace; topname = :eval_noinfo)
+    usrtrace, defs = Method[], RelocatableExpr[]
+    methodsused = Set{Method}()
+    for (i, sf) in enumerate(trace)
+        sf.func == topname && break  # truncate at the chosen spot
+        sf.func ∈ notrace && continue
+        mi = sf.linfo
+        if mi isa Core.MethodInstance
+            method = mi.def
+            # Set up tracking, if necessary
+            file = String(sf.file)
+            if !haskey(Revise.fileinfos, file)
+                ret = Revise.find_file(file, method.module)
+                ret == nothing && continue
+                file, recipemod = ret
+                if !haskey(Revise.fileinfos, file)
+                    try
+                        @info "tracking $recipemod"
+                        Revise.track(recipemod)
+                    catch err
+                        err isa Revise.GitRepoException && continue
+                        rethrow(err)
+                    end
+                end
+            end
+            haskey(Revise.fileinfos, file) || continue
+            fi = Revise.fileinfos[file]
+            Revise.maybe_parse_from_cache!(fi, file)
+            funcname = String(sf.func)
+            if startswith(funcname, '#')
+                # This is a generated method, perhaps it's a keyword function handler
+                # Look for it by line number
+                defmap = fi.fm[method.module].defmap
+                for (def, info) in defmap
+                    info == nothing && continue
+                    sigts, offset = info
+                    r = linerange(def, offset)
+                    r == nothing && continue
+                    if sf.line ∈ r
+                        mths = Base._methods_by_ftype(last(sigts), -1, typemax(UInt))
+                        if length(mths) == 1
+                            m = mths[1][3]
+                            if m ∉ methodsused
+                                push!(defs, def)
+                                push!(usrtrace, m)
+                                push!(methodsused, m)
+                                break
+                            end
+                        end
+                    end
+                end
+            else
+                method ∈ methodsused && continue
+                def = Revise.get_def(method)
+                def isa ExLike || continue
+                push!(defs, def)
+                push!(usrtrace, method)
+            end
+        end
+    end
+    return usrtrace, defs
+end
+
 """
     uuids = capture_stacktrace(mod, command)
 
@@ -45,41 +142,26 @@ Since this requires two `eval`s of `command`, usage should be limited to
 deterministic expressions that always result in the same call chain.
 """
 function capture_stacktrace(mod::Module, command::Expr)
-    local trace
     errored = true
-    try
+    trace = try
         eval_noinfo(mod, command)
         errored = false
     catch
-        trace = stacktrace(catch_backtrace())
+        stacktrace(catch_backtrace())
     end
     errored || error("$command did not throw an error")
-    # Truncate the stacktrace at eval_noinfo & check whether the same method appears in multiple slots
-    calledmethods = Method[]
-    for (i, t) in enumerate(trace)
-        if t.func == :eval_noinfo
-            resize!(trace, i-1)
-            break
-        end
-        t.func ∈ notrace && continue
-        startswith(String(t.func), '#') && continue # skip generated methods
-        if !has_no_linfo(t)
-            m = t.linfo.def
-            @assert m isa Method
-            push!(calledmethods, m)
-        end
-    end
-    Base.show_backtrace(stderr, trace)
-    print(stderr, '\n')
-    length(unique(calledmethods)) == length(calledmethods) || @error "the same method appeared twice, not supported. Try stepping into the command."
-    capture_stacktrace!(UUID[], calledmethods) do
+    usrtrace, defs = pregenerated_stacktrace(trace)
+    println(stderr, "Captured elements of stacktrace:")
+    show(stderr, MIME("text/plain"), usrtrace)
+    length(unique(usrtrace)) == length(usrtrace) || @error "the same method appeared twice, not supported. Try stepping into the command."
+    capture_stacktrace!(UUID[], usrtrace, defs) do
         eval_noinfo(mod, command)
     end
 end
 capture_stacktrace(command::Expr) = capture_stacktrace(Main, command)
 
-function capture_stacktrace!(f::Function, uuids::Vector, calledmethods::Vector)
-    if isempty(calledmethods)
+function capture_stacktrace!(f::Function, uuids::Vector, usrtrace, defs)
+    if isempty(usrtrace)
         # We've finished modifying all the methods, time to run the command
         try
             f()
@@ -88,14 +170,14 @@ function capture_stacktrace!(f::Function, uuids::Vector, calledmethods::Vector)
         end
         return
     end
-    method = calledmethods[end]
-    def = get_def(method)
+    method, def = usrtrace[end], defs[end]
     if def != nothing
         push!(uuids, method_capture_from_callee(method, def; overwrite=true))
     end
     # Recurse up the stack until we get to the top...
-    pop!(calledmethods)
-    capture_stacktrace!(f, uuids, calledmethods)
+    pop!(usrtrace)
+    pop!(defs)
+    capture_stacktrace!(f, uuids, usrtrace, defs)
     # ...after which it will call the erroring function and come back here.
     # Having come back, restore the original definition
     if def != nothing
@@ -270,6 +352,9 @@ function method_capture_from_callee(method, def; overwrite::Bool=false)
     sigr, body = get_signature(def), unquote(funcdef_body(def))
     sigr == nothing && throw(SignatureError(method))
     sigex = convert(Expr, sigr)
+    if sigex.head == :(::)
+        sigex = sigex.args[1]  # return type declaration
+    end
     methname, argnames, kwnames, paramnames = signature_names(sigex)
     # Check for call-overloading method, e.g., (obj::ObjType)(x, y...) = <body>
     callerobj = nothing
@@ -298,7 +383,13 @@ function method_capture_from_callee(method, def; overwrite::Bool=false)
         $storeexpr
         throw(Main.Rebugger.StopException())
     end
-    capture_name = _gensym(methname)
+    capture_name = try
+        _gensym(methname)
+    catch
+        nothing
+    end
+    capture_name == nothing && (dump(methname); dump(sigex); error("couldn't gensym"))
+    # capture_name = _gensym(methname)
     mod = method.module
     capture_function = Expr(:function, overwrite ? sigex : rename_method(sigex, capture_name, callerobj), capture_body)
     storefunc[uuid] = Core.eval(mod, capture_function)
@@ -307,6 +398,7 @@ function method_capture_from_callee(method, def; overwrite::Bool=false)
 end
 function method_capture_from_callee(method; kwargs...)
     # Could use a default arg above but this generates a more understandable error message
+    local def
     try
         def = get_def(method)
     catch err
@@ -405,8 +497,6 @@ function rename_method!(ex::ExLike, name::Symbol, callerobj)
     return ex
 end
 rename_method(ex::ExLike, name::Symbol, callerobj) = rename_method!(copy(ex), name, callerobj)
-
-has_no_linfo(sf::Base.StackFrame) = !isa(sf.linfo, Core.MethodInstance)
 
 # Use to re-evaluate an expression without leaving "breadcrumbs" about where
 # the eval is coming from. This is used below to prevent the re-evaluaton of an

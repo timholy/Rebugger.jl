@@ -119,6 +119,8 @@ end
 
 function capture_stacktrace(s)
     cmdstring = LineEdit.content(s)
+    add_history(s, cmdstring)
+    print(REPL.terminal(s), '\n')
     expr = Meta.parse(cmdstring)
     uuids = capture_stacktrace(expr)
     io = IOBuffer()

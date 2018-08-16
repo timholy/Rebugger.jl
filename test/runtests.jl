@@ -290,6 +290,11 @@ Base.show(io::IO, ::ErrorsOnShow) = throw(ArgumentError("no show"))
             @test Rebugger.stored[uuids[3]].varvals == ("Spy", "on")
             @test Rebugger.stored[uuids[4]].varvals == ("Spy", "on", "arguments", "simply", empty_kwvarargs, String)
             @test_throws ErrorException("oops") RebuggerTesting.snoop0()
+
+            st = try RebuggerTesting.kwfunctop(3) catch; stacktrace(catch_backtrace()) end
+            usrtrace, defs = Rebugger.pregenerated_stacktrace(st; topname=Symbol("macro expansion"))
+            @test length(unique(usrtrace)) == length(usrtrace)
+            @test usrtrace[1] == @which RebuggerTesting.kwfuncmiddle(1,1)
         end
     end
 
