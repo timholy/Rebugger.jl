@@ -95,6 +95,9 @@ function stepin(s::LineEdit.MIState)
         if err isa StashingFailed
             repl.header.warnmsg = "Execution did not reach point"
             handled = true
+        elseif err isa Meta.ParseError || err isa StepException
+            repl.header.warnmsg = "Expression at point is not a call expression"
+            handled = true
         elseif err isa EvalException
             repl.header.errmsg = "$(typeof(err.exception)) exception while evaluating $(err.exprstring)"
             handled = true
