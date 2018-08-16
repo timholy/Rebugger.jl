@@ -355,7 +355,7 @@ function method_capture_from_callee(method, def; overwrite::Bool=false)
     if sigex.head == :(::)
         sigex = sigex.args[1]  # return type declaration
     end
-    methname, argnames, kwnames, paramnames = signature_names(sigex)
+    methname, argnames, kwnames, paramnames = signature_names!(sigex)
     # Check for call-overloading method, e.g., (obj::ObjType)(x, y...) = <body>
     callerobj = nothing
     if methname isa Expr && methname.head == :(::)
@@ -442,7 +442,7 @@ julia> Rebugger.signature_names(:(complexargs(w::Ref{A}, @nospecialize(x::Intege
 (:complexargs, (:w, :x, :y, :z), (:kwarg, :kw2, :kwargs), (:A, :T, :N))
 ```
 """
-function signature_names(sigex::ExLike)
+function signature_names!(sigex::ExLike)
     # TODO: add parameter names
     argname(s::Symbol) = s
     function argname(ex::ExLike)
@@ -456,8 +456,13 @@ function signature_names(sigex::ExLike)
         ex.head == :tuple && return ex    # tuple-destructuring argument
         ex.head == :(::) || throw(ArgumentError(string("expected :(::) expression, got ", ex)))
         arg = ex.args[1]
+        if length(ex.args) == 1 && (arg isa Symbol)
+            # This argument has a type but no name
+            return arg, true
+        end
         if isa(arg, Expr) && arg.head == :curly && arg.args[1] == :Type
-            arg = arg.args[2]
+            # Argument of the form ::Type{T}
+            return arg.args[2], false
         end
         return arg
     end
@@ -467,9 +472,9 @@ function signature_names(sigex::ExLike)
         throw(ArgumentError(string("expected parameter expression, got ", ex)))
     end
 
-    kwnames, parameternames = (), ()
+    kwnames, parameternames = (), []
     while sigex.head == :where
-        parameternames = (paramname.(sigex.args[2:end])..., parameternames...)
+        parameternames = [paramname.(sigex.args[2:end])..., parameternames...]
         sigex = sigex.args[1]
     end
     name = sigex.args[1]
@@ -479,8 +484,29 @@ function signature_names(sigex::ExLike)
         kwnames = tuple(argname.(sigex.args[2].args)...)
         offset += 1
     end
+    # Argnames. For any unnamed arguments we have to generate a name.
+    empty!(usdict)
+    argnames = Union{Symbol,Expr}[]
+    for i = offset+1:length(sigex.args)
+        arg = sigex.args[i]
+        name = argname(arg)
+        if name isa Tuple
+            name, genname = name
+            if genname
+                # This argument is missing a real name
+                argt = name
+                name = genunderscored(argt)
+                sigex.args[i] = :($name::$argt)
+            else
+                # This is a ::Type{T} argument. We should remove this from the list of parameters
+                push!(msgs, (parameternames, name))
+                parameternames = filter(!isequal(name), parameternames)
+            end
+        end
+        push!(argnames, name)
+    end
 
-    return sigex.args[1], tuple(argname.(sigex.args[offset+1:end])...), kwnames, parameternames
+    return sigex.args[1], tuple(argnames...), kwnames, tuple(parameternames...)
 end
 
 function rename_method!(ex::ExLike, name::Symbol, callerobj)
@@ -515,5 +541,12 @@ unquote(rex::RelocatableExpr) = unquote(convert(Expr, rex))
 _gensym(sym::Symbol) = gensym(sym)
 _gensym(q::QuoteNode) = _gensym(q.value)
 _gensym(ex::Expr) = (@assert ex.head == :. && length(ex.args) == 2; _gensym(ex.args[2]))
+
+const usdict = Dict{Symbol,Int}()
+function genunderscored(sym::Symbol)
+    n = get(usdict, sym, 0) + 1
+    usdict[sym] = n
+    return Symbol("__"*String(sym)*'_'*string(n))
+end
 
 const notrace = (:error, :throw)

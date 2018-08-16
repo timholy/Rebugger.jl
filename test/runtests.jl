@@ -26,6 +26,12 @@ Base.show(io::IO, ::ErrorsOnShow) = throw(ArgumentError("no show"))
             @test Rebugger.signature_names!(:(f(x::Int, @nospecialize(y::String)))) == (:f, (:x, :y), (), ())
             @test Rebugger.signature_names!(:(f(x::Int, $(Expr(:meta, :nospecialize, :(y::String)))))) ==
                 (:f, (:x, :y), (), ())
+            ex = :(f(::Type{T}, ::IndexStyle, x::Int, ::IndexStyle) where T)
+            @test Rebugger.signature_names!(ex) == (:f, (:T, :__IndexStyle_1, :x, :__IndexStyle_2), (), ())
+            @test ex == :(f(::Type{T}, __IndexStyle_1::IndexStyle, x::Int, __IndexStyle_2::IndexStyle) where T)
+            ex = :(f(Tuseless::Type{T}, ::IndexStyle, x::Int) where T)
+            @test Rebugger.signature_names!(ex) == (:f, (:Tuseless, :__IndexStyle_1, :x), (), (:T,))
+            @test ex == :(f(Tuseless::Type{T}, __IndexStyle_1::IndexStyle, x::Int) where T)
         end
         @testset "Caller buffer capture and insertion" begin
             function run_insertion(str, atstr)
