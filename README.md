@@ -53,10 +53,8 @@ Starting Rebugger from a running Julia session will not do anything useful.
 
 Documentation is sparse right now. To get you started, there are two important keybindings:
 
-- F11 maps to "step in": NOTE you may have to disable F11 from meaning "fullscreen" in your desktop settings
+- Alt-Shift-Enter maps to "step in"
 - F5 maps to "capture stacktrace" (for commands that throw an error)
-
-**NOTE**: in the future we are likely to switch F11 to Ctrl-Enter, but use F11 for now.
 
 ### Stepping in
 
@@ -65,16 +63,16 @@ at the desired location in the command line:
 
 ![stepin1](images/stepin1.png)
 
-Now if you hit F11, you should see something like this:
+Now if you hit Alt-Shift-Enter, you should see something like this:
 
 ![stepin2](images/stepin2.png)
 
 The magenta tells you which method you are stepping into.
 The blue shows you the value(s) of any input arguments or type parameters.
 
-Note the cursor has been moved to another `show` call. Hit F11 again.
+Note the cursor has been moved to another `show` call. Hit Alt-Shift-Enter again.
 Now let's illustrate another important display item: if you position your cursor
-as shown and hit F11 again, you should get the following:
+as shown and hit Alt-Shift-Enter again, you should get the following:
 
 ![stepin3](images/stepin3.png)
 

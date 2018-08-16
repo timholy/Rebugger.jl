@@ -228,16 +228,14 @@ end
 const rebugger_modeswitch = Dict{Any,Any}(
     # F5
     "\e[15~"   => (s, o...) -> (capture_stacktrace(s); enter_rebug(s)),
-    # F11. Note for `konsole` (KDE) users, F11 means "fullscreen". Turn off in Settings->Configure Shortcuts
-    "\e[23~"   => (s, o...) -> (stepin(s); enter_rebug(s)),
+    # Alt-Shift-Enter
+    "\e\eOM"   => (s, o...) -> (stepin(s); enter_rebug(s)),
+    # Deprecate F11
+    "\e[23~"   => (s, o...) -> (stepin(s); rebug_prompt_ref[].repl.header.warnmsg="stepin is now Alt-Shift-Enter"; enter_rebug(s)),
 )
 
 # These work only at the `rebug>` prompt
 const rebugger_keys = Dict{Any,Any}(
-    # # Shift-F11
-    # "\e[23;2~" => (s, o...) -> stepup(s),
-    # # Ctrl-F11
-    # "\e[23;5~" => (s, o...) -> stepdown(s),
 )
 
 ## REPL commands TODO?:
