@@ -99,6 +99,18 @@ That's because you entered at the top of the stacktrace.
 You can use your up and down errors to step through the history, which corresponds
 to going up and down the stack trace.
 
+Sometimes the portions of the stacktrace you can navigate with the arrows
+differs from what you see in the original error:
+
+![stacktracePkg](images/capture_stacktrace_Pkg.png)
+
+Note that only five methods got captured but the stacktrace is much longer.
+Most of these methods, however, start with `#`, an indication that they are
+generated methods rather than ones that appear in the source code.
+
+**Note**: `Pkg` is one of Julia's standard libraries, and to step into or trace Julia's stdlibs
+you must build Julia from source.
+
 ## Known issues
 
 There are *many*. A few selected items:
