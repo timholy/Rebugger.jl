@@ -18,14 +18,14 @@ The name "Rebugger" has 3 meanings:
 
 ## Installation
 
-For now, you have to install two packages:
+Begin with
 
 ```julia
-(v1.0) pkg> add https://github.com/timholy/HeaderREPLs.jl.git
-(v1.0) pkg> add https://github.com/timholy/Rebugger.jl.git
+(v1.0) pkg> add Rebugger
 ```
 
-Also you **must** add something similar to the following lines to your `.julia/config/startup.jl` file:
+However, for Rebugger to work you **must** add something similar to the
+following lines to your `.julia/config/startup.jl` file:
 
 ```julia
 try
@@ -70,7 +70,7 @@ Now if you hit Alt-Shift-Enter, you should see something like this:
 The magenta tells you which method you are stepping into.
 The blue shows you the value(s) of any input arguments or type parameters.
 
-Note the cursor has been moved to another `show` call. Hit Alt-Shift-Enter again.
+Note the user has moved the cursor to another `show` call. Hit Alt-Shift-Enter again.
 Now let's illustrate another important display item: if you position your cursor
 as shown and hit Alt-Shift-Enter again, you should get the following:
 
@@ -105,6 +105,7 @@ differs from what you see in the original error:
 Note that only five methods got captured but the stacktrace is much longer.
 Most of these methods, however, start with `#`, an indication that they are
 generated methods rather than ones that appear in the source code.
+The interactive stacktrace examines only those methods that appear in the source code.
 
 **Note**: `Pkg` is one of Julia's standard libraries, and to step into or trace Julia's stdlibs
 you must build Julia from source.
@@ -115,18 +116,14 @@ There are *many*. A few selected items:
 
 - F5 sometimes doesn't work when your cursor is at the end of the line.
   Move your cursor anywhere else in that line and try again.
-- Revise must be tracking the package/stdlib for any of this to work.
-  Note the `Revise.track(Pkg)` line in the demo above.
-  One exception is Base, for which tracking will be initiated automatically.
-  For script use `includet(filename)` to include-and-track.
+- Rebugger needs Revise to track the package/stdlib.
+  For scripts use `includet(filename)` to include-and-track.
 - There are known glitches in the display. When capturing stack traces, hit
   enter on the first one to rethrow the error before trying the up and down arrows
   to navigate the history---that seems to reduce the glitching.
   (For brave souls who want to help fix these,
   see [HeaderREPLs.jl](https://github.com/timholy/HeaderREPLs.jl))
 - You cannot step into methods defined at the REPL.
-- Stacktraces currently don't capture from methods that start with `#`.
-  However, once you get to one of their callers you can step into them.
 - Rebugger runs best in Julia 1.0. While it should run on Julia 0.7,
   a local-scope deprecation can cause some
   problems. If you want 0.7 because of its deprecation warnings and are comfortable
