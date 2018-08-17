@@ -423,6 +423,13 @@ function generate_let_command(uuid::UUID)
     generate_let_command(s.method, uuid)
 end
 
+"""
+    args_and_types = Rebugger.getstored(uuid)
+
+Retrieve the values of stored arguments and type-parameters from the store specified
+`uuid`. This makes a copy of values, so as to be safe for repeated execution of methods
+that modify their inputs.
+"""
 getstored(uuidstr::AbstractString) = safe_deepcopy(Main.Rebugger.stored[UUID(uuidstr)].varvals...)
 
 kwstasher(; kwargs...) = kwargs
@@ -430,16 +437,27 @@ kwstasher(; kwargs...) = kwargs
 ### Utilities
 
 """
-    fname, argnames, kwnames, parameternames = signature_names(sigex::Expr)
+    fname, argnames, kwnames, parameternames = signature_names!(sigex::Expr)
 
 Return the function name `fname` and names given to its arguments, keyword arguments,
 and parameters, as specified by the method signature-expression `sigex`.
 
+`sigex` will be modified if some of the arguments are unnamed.
+
+
 # Examples
 
 ```jldoctest; setup=:(using Rebugger)
-julia> Rebugger.signature_names(:(complexargs(w::Ref{A}, @nospecialize(x::Integer), y, z::String=""; kwarg::Bool=false, kw2::String="", kwargs...) where A <: AbstractArray{T,N} where {T,N}))
+julia> Rebugger.signature_names!(:(complexargs(w::Ref{A}, @nospecialize(x::Integer), y, z::String=""; kwarg::Bool=false, kw2::String="", kwargs...) where A <: AbstractArray{T,N} where {T,N}))
 (:complexargs, (:w, :x, :y, :z), (:kwarg, :kw2, :kwargs), (:A, :T, :N))
+
+julia> ex = :(myzero(::Float64));     # unnamed argument
+
+julia> Rebugger.signature_names!(ex)
+(:myzero, (:__Float64_1,), (), ())
+
+julia> ex
+:(myzero(__Float64_1::Float64))
 ```
 """
 function signature_names!(sigex::ExLike)
