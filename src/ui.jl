@@ -234,6 +234,11 @@ end
 
 ## Key bindings
 
+# For adding keys to already-constructed keymaps
+
+add_key_stacktrace!(keymap) = LineEdit.add_nested_key!(keymap, "\e[15~", (s, o...) -> capture_stacktrace(s))
+add_key_stepin!(keymap)     = LineEdit.add_nested_key!(keymap, "\e\eOM", (s, o...) -> (stepin(s); enter_rebug(s)))
+
 # These work at the `julia>` prompt and the `rebug>` prompt
 const rebugger_modeswitch = Dict{Any,Any}(
     # F5

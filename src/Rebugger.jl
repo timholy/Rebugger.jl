@@ -25,23 +25,27 @@ end
 
 function __init__()
     # Set up the Rebugger REPL mode with all of its key bindings
+    repl_inited = isdefined(Base, :active_repl)
     @async begin
         while !isdefined(Base, :active_repl)
             sleep(0.05)
         end
         sleep(0.1) # for extra safety
+        # Set up the custom "rebug" REPL
         main_repl = Base.active_repl
         repl = HeaderREPL(main_repl, RebugHeader())
         interface = REPL.setup_interface(repl; extra_repl_keymap=[rebugger_modeswitch, rebugger_keys])
         rebug_prompt_ref[] = interface.modes[end]
         # Add F5 to the history prompt
         history_prompt = find_prompt(main_repl.interface, LineEdit.PrefixHistoryPrompt)
-        # dc = history_prompt.keymap_dict
-        # dc = dc['\e']
-        # dc = dc['[']
-        # dc = dc['1']
-        LineEdit.add_nested_key!(history_prompt.keymap_dict, "\e[15~", (s, o...) -> capture_stacktrace(s))
-        # history_prompt.keymap_dict["\e[15~"] = (s, o...) -> capture_stacktrace(s)
+        add_key_stacktrace!(history_prompt.keymap_dict)
+        # If the REPL was already initialized, add the keys to the julia> prompt now
+        # (This will already be done if the user turned on the key bindings in her startup.jl file)
+        if repl_inited
+            julia_prompt = find_prompt(main_repl.interface, "julia")
+            add_key_stacktrace!(julia_prompt.keymap_dict)
+            add_key_stepin!(julia_prompt.keymap_dict)
+        end
     end
 end
 
