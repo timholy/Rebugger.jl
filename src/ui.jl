@@ -134,10 +134,12 @@ function capture_stacktrace(s)
         REPL.add_history(hp, buf)
         take!(io)
     end
+    hp.cur_idx = length(hp.history) + 1
     if !isempty(uuids)
-        LineEdit.edit_clear(s)
-        LineEdit.edit_insert(s, hp.history[end])
         set_uuid!(header(s), uuids[end])
+        print(REPL.terminal(s), '\n')
+        LineEdit.edit_clear(s)
+        LineEdit.enter_prefix_search(s, find_prompt(s, LineEdit.PrefixHistoryPrompt), true)
     end
     return nothing
 end
@@ -230,7 +232,7 @@ end
 # These work at the `julia>` prompt and the `rebug>` prompt
 const rebugger_modeswitch = Dict{Any,Any}(
     # F5
-    "\e[15~"   => (s, o...) -> (capture_stacktrace(s); enter_rebug(s)),
+    "\e[15~"   => (s, o...) -> capture_stacktrace(s),
     # Alt-Shift-Enter
     "\e\eOM"   => (s, o...) -> (stepin(s); enter_rebug(s)),
     # Deprecate F11
