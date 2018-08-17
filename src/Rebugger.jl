@@ -34,6 +34,14 @@ function __init__()
         repl = HeaderREPL(main_repl, RebugHeader())
         interface = REPL.setup_interface(repl; extra_repl_keymap=[rebugger_modeswitch, rebugger_keys])
         rebug_prompt_ref[] = interface.modes[end]
+        # Add F5 to the history prompt
+        history_prompt = find_prompt(main_repl.interface, LineEdit.PrefixHistoryPrompt)
+        # dc = history_prompt.keymap_dict
+        # dc = dc['\e']
+        # dc = dc['[']
+        # dc = dc['1']
+        LineEdit.add_nested_key!(history_prompt.keymap_dict, "\e[15~", (s, o...) -> capture_stacktrace(s))
+        # history_prompt.keymap_dict["\e[15~"] = (s, o...) -> capture_stacktrace(s)
     end
 end
 
