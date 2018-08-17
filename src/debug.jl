@@ -31,8 +31,17 @@ struct EvalException   <: Exception
     exception
 end
 
-### Stacktraces
+function clear()
+    # Clear internal data. This forces regeneration of capture methods, which can be handy
+    # while debugging Rebugger itself.
+    stashed[] = nothing
+    empty!(stored)
+    empty!(storefunc)
+    empty!(storemap)
+    nothing
+end
 
+### Stacktraces
 
 """
     r = linerange(expr, offset=0)
