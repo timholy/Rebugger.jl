@@ -1,7 +1,7 @@
 # Rebugger
 
 [![Build Status](https://travis-ci.org/timholy/Rebugger.jl.svg?branch=master)](https://travis-ci.org/timholy/Rebugger.jl)
-[![Build status](https://ci.appveyor.com/api/projects/status/e1xnsj4e5q9308y6/branch/master?svg=true)](https://ci.appveyor.com/project/timholy/Rebugger-jl/branch/master)
+[![Build status](https://ci.appveyor.com/api/projects/status/e9t1wlyy995whchc?svg=true)](https://ci.appveyor.com/project/timholy/Rebugger-jl/branch/master)
 [![codecov.io](http://codecov.io/github/timholy/Rebugger.jl/coverage.svg?branch=master)](http://codecov.io/github/timholy/Rebugger.jl?branch=master)
 
 Rebugger is an expression-level debugger for Julia.
