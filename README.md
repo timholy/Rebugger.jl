@@ -7,122 +7,33 @@
 Rebugger is an expression-level debugger for Julia.
 It has no ability to interact with or manipulate call stacks (see [ASTInterpreter2](https://github.com/Keno/ASTInterpreter2.jl)),
 but it can trace execution via the manipulation of Julia expressions.
-It is in the very early stages of development, and users should currently expect bugs (please do [report](https://github.com/timholy/Rebugger.jl/issues) them).
-Neverthess it may be of net benefit for some users.
 
 The name "Rebugger" has 3 meanings:
 
-- it is a REPL-based debugger (more on that below)
+- it is a REPL-based debugger (more on that in the documentation)
 - it is the [Revise](https://github.com/timholy/Revise.jl)-based debugger
 - it supports repeated-execution debugging
 
-## Installation
+## Installation and usage
 
-For now, you have to install two packages:
+See the documentation:
 
-```julia
-(v1.0) pkg> add https://github.com/timholy/HeaderREPLs.jl.git
-(v1.0) pkg> add https://github.com/timholy/Rebugger.jl.git
-```
+[![](https://img.shields.io/badge/docs-stable-blue.svg)](https://timholy.github.io/Revise.jl/stable)
+[![](https://img.shields.io/badge/docs-latest-blue.svg)](https://timholy.github.io/Revise.jl/latest)
 
-Also you **must** add something similar to the following lines to your `.julia/config/startup.jl` file:
+Note that Rebugger **requires additional configuration**.
 
-```julia
-try
-    @eval using Revise
-    # Turn on Revise's file-watching behavior
-    Revise.async_steal_repl_backend()
-catch
-    @warn "Could not load Revise."
-end
+In terms of usage, very briefly
 
-try
-    @eval using Rebugger
-    atreplinit(Rebugger.repl_init)
-catch
-    @warn "Could not turn on Rebugger key bindings."
-end
-```
+- "step in" is achieved by positioning your cursor in your input line to the beginning of
+  the call expression you wish to descend into. Then hit Alt-Shift-Enter.
+- for an expression that generates an error, hit "F5" to capture the stacktrace and
+  populate your REPL history with a sequence of expressions that contain the method bodies
+  of the calls in the stacktrace.
 
-The reason is that Rebugger adds some custom key bindings to the REPL, and **adding new
-key bindings works only if it is done before the REPL starts.**
+Complete examples are provided in the documentation.
 
-Starting Rebugger from a running Julia session will not do anything useful.
+## Status
 
-## Using Rebugger
-
-Documentation is sparse right now. To get you started, there are two important keybindings:
-
-- F11 maps to "step in": NOTE you may have to disable F11 from meaning "fullscreen" in your desktop settings
-- F5 maps to "capture stacktrace" (for commands that throw an error)
-
-**NOTE**: in the future we are likely to switch F11 to Ctrl-Enter, but use F11 for now.
-
-### Stepping in
-
-Select the expression you want to step into by positioning "point" (your cursor)
-at the desired location in the command line:
-
-![stepin1](images/stepin1.png)
-
-Now if you hit F11, you should see something like this:
-
-![stepin2](images/stepin2.png)
-
-The magenta tells you which method you are stepping into.
-The blue shows you the value(s) of any input arguments or type parameters.
-
-Note the cursor has been moved to another `show` call. Hit F11 again.
-Now let's illustrate another important display item: if you position your cursor
-as shown and hit F11 again, you should get the following:
-
-![stepin3](images/stepin3.png)
-
-Note the yellow/orange line: this is a warning message, and you should pay attention to these.
-In this case the call actually enters `show_vector`; if you moved your cursor there,
-you could trace execution more completely.
-
-### Capturing stacktraces
-
-Choose a command that throws an error, for example:
-
-![stacktrace1](images/capture_stacktrace1.png)
-
-Enter the command again, and this time hit F5:
-
-![stacktrace2](images/capture_stacktrace2.png)
-
-Hit enter and you should see the error again, but this time with a much shorter
-stacktrace.
-That's because you entered at the top of the stacktrace.
-
-You can use your up and down errors to step through the history, which corresponds
-to going up and down the stack trace.
-
-## Known issues
-
-There are *many*. A few selected items:
-
-- F5 sometimes doesn't work when your cursor is at the end of the line.
-  Move your cursor anywhere else in that line and try again.
-- Revise must be tracking the package/stdlib for any of this to work.
-  Note the `Revise.track(Pkg)` line in the demo above.
-  One exception is Base, for which tracking will be initiated automatically.
-  For script use `includet(filename)` to include-and-track.
-- There are known glitches in the display. When capturing stack traces, hit
-  enter on the first one to rethrow the error before trying the up and down arrows
-  to navigate the history---that seems to reduce the glitching.
-  (For brave souls who want to help fix these,
-  see [HeaderREPLs.jl](https://github.com/timholy/HeaderREPLs.jl))
-- You cannot step into methods defined at the REPL.
-- Stacktraces currently don't capture from methods that start with `#`.
-  However, once you get to one of their callers you can step into them.
-- Rebugger runs best in Julia 1.0. While it should run on Julia 0.7,
-  a local-scope deprecation can cause some
-  problems. If you want 0.7 because of its deprecation warnings and are comfortable
-  building Julia, consider building it at commit
-  f08f3b668d222042425ce20a894801b385c2b1e2, which removed the local-scope deprecation
-  but leaves most of the other deprecation warnings from 0.7 still in place.
-- For now you can't step into constructors (it tries to step into `(::Type{T})`)
-- If you start `dev`ing a package that you had already loaded, you need to restart
-  your session (https://github.com/timholy/Revise.jl/issues/146)
+Rebugger is in early stages of development, and users should currently expect bugs (please do [report](https://github.com/timholy/Rebugger.jl/issues) them).
+Neverthess it may be of net benefit for some users.

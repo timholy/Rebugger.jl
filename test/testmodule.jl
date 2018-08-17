@@ -23,6 +23,10 @@ const hv_test = HasValue(11.1)
 
 (hv::HasValue)(str::String) = hv.x
 
+@inline kwfuncerr(y) = error("stop")
+@noinline kwfuncmiddle(x::T, y::Integer=1; kw1="hello", kwargs...) where T = kwfuncerr(y)
+@inline kwfunctop(x; kwargs...) = kwfuncmiddle(x, 2; kwargs...)
+
 end
 
 module RBT2

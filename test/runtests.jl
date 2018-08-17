@@ -22,6 +22,17 @@ Base.show(io::IO, ::ErrorsOnShow) = throw(ArgumentError("no show"))
             argc = Rebugger.safe_deepcopy(args...)
             @test argc == args
         end
+        @testset "Signatures" begin
+            @test Rebugger.signature_names!(:(f(x::Int, @nospecialize(y::String)))) == (:f, (:x, :y), (), ())
+            @test Rebugger.signature_names!(:(f(x::Int, $(Expr(:meta, :nospecialize, :(y::String)))))) ==
+                (:f, (:x, :y), (), ())
+            ex = :(f(::Type{T}, ::IndexStyle, x::Int, ::IndexStyle) where T)
+            @test Rebugger.signature_names!(ex) == (:f, (:T, :__IndexStyle_1, :x, :__IndexStyle_2), (), ())
+            @test ex == :(f(::Type{T}, __IndexStyle_1::IndexStyle, x::Int, __IndexStyle_2::IndexStyle) where T)
+            ex = :(f(Tuseless::Type{T}, ::IndexStyle, x::Int) where T)
+            @test Rebugger.signature_names!(ex) == (:f, (:Tuseless, :__IndexStyle_1, :x), (), (:T,))
+            @test ex == :(f(Tuseless::Type{T}, __IndexStyle_1::IndexStyle, x::Int) where T)
+        end
         @testset "Caller buffer capture and insertion" begin
             function run_insertion(str, atstr)
                 RebuggerTesting.cbdata1[] = RebuggerTesting.cbdata2[] = Rebugger.stashed[] = nothing
@@ -290,6 +301,11 @@ Base.show(io::IO, ::ErrorsOnShow) = throw(ArgumentError("no show"))
             @test Rebugger.stored[uuids[3]].varvals == ("Spy", "on")
             @test Rebugger.stored[uuids[4]].varvals == ("Spy", "on", "arguments", "simply", empty_kwvarargs, String)
             @test_throws ErrorException("oops") RebuggerTesting.snoop0()
+
+            st = try RebuggerTesting.kwfunctop(3) catch; stacktrace(catch_backtrace()) end
+            usrtrace, defs = Rebugger.pregenerated_stacktrace(st; topname=Symbol("macro expansion"))
+            @test length(unique(usrtrace)) == length(usrtrace)
+            @test usrtrace[1] == @which RebuggerTesting.kwfuncmiddle(1,1)
         end
     end
 
@@ -313,3 +329,7 @@ Base.show(io::IO, ::ErrorsOnShow) = throw(ArgumentError("no show"))
         end
     end
 end
+
+# TODO when I figure out how to test the REPL ui
+# Try stepping in to Plots.histogram(randn(1000))    # issue #3, Plots is listed as the module but the file is in RecipesBase
+# Try the same except position point at the beginning of histogram rather than Plots (or really any partial expression)
