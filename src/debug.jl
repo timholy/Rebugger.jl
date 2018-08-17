@@ -451,7 +451,7 @@ function signature_names(sigex::ExLike)
             ex = ex.args[1]
             ex isa Symbol && return ex
         end
-        ex.head == :macrocall && return argname(ex.args[3])  # @nospecialize
+        (ex.head == :macrocall || ex.head == :meta) && return argname(ex.args[end])  # @nospecialize
         ex.head == :kw && return argname(ex.args[1])  # default arguments
         ex.head == :tuple && return ex    # tuple-destructuring argument
         ex.head == :(::) || throw(ArgumentError(string("expected :(::) expression, got ", ex)))

@@ -22,6 +22,11 @@ Base.show(io::IO, ::ErrorsOnShow) = throw(ArgumentError("no show"))
             argc = Rebugger.safe_deepcopy(args...)
             @test argc == args
         end
+        @testset "Signatures" begin
+            @test Rebugger.signature_names!(:(f(x::Int, @nospecialize(y::String)))) == (:f, (:x, :y), (), ())
+            @test Rebugger.signature_names!(:(f(x::Int, $(Expr(:meta, :nospecialize, :(y::String)))))) ==
+                (:f, (:x, :y), (), ())
+        end
         @testset "Caller buffer capture and insertion" begin
             function run_insertion(str, atstr)
                 RebuggerTesting.cbdata1[] = RebuggerTesting.cbdata2[] = Rebugger.stashed[] = nothing
