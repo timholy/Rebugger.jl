@@ -10,6 +10,7 @@ makedocs(
     pages = [
         "Home" => "index.md",
         "usage.md",
+        "config.md",
         "limitations.md",
         "internals.md",
         "reference.md",

@@ -18,28 +18,11 @@ Begin with
 (v1.0) pkg> add Rebugger
 ```
 
-However, for Rebugger to work you **must** add something similar to the
-following lines to your `.julia/config/startup.jl` file:
+You can experiment with Rebugger with just
 
 ```julia
-try
-    @eval using Revise
-    # Turn on Revise's file-watching behavior
-    Revise.async_steal_repl_backend()
-catch
-    @warn "Could not load Revise."
-end
-
-try
-    @eval using Rebugger
-    atreplinit(Rebugger.repl_init)
-catch
-    @warn "Could not turn on Rebugger key bindings."
-end
+julia> using Rebugger
 ```
 
-The reason is that Rebugger adds some custom key bindings to the REPL, and **adding new
-key bindings works only if it is done before the REPL starts.**
-
-Starting Rebugger from a running Julia session will not do anything useful.
-
+If you decide you like it (see [Usage](@ref)), you can optionally configure it so that it
+is always available (see [Configuration](@ref)).

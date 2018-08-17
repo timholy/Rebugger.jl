@@ -30,8 +30,9 @@ to enter `fcomplex` with appropriate arguments:
   obtain all the inputs to the method. For simple methods this may be redundant
   with *caller capture*, but *callee capture* can also obtain the values of
   default arguments, keyword arguments, and type parameters.
-- Finally, Rebugger rewrites the buffer with the body of the appropriate method,
-  so that the user can inspect and manipulate it.
+- Finally, Rebugger rewrites the REPL command-line buffer with a suitably-modified
+  version of the body of the appropriate method, so that the user can inspect and
+  manipulate it.
 
 ### Caller capture
 
@@ -126,18 +127,21 @@ The `let` block ensures that these variables do not conflict with other objects 
 may be defined in `ModuleOf_fcomplex`.
 The values are unloaded from the store (making copies, in case `fcomplex` modifies its
 inputs) and then execution proceeds into `body`.
-If the user edits the buffer, the body can be modified or replaced with custom logic.
+
+The user can then edit the buffer at will.
 
 ## Implementation of "catch stacktrace"
 
-In contrast with "step in," when catching a stacktrace Rebugger does not know in advance
-of making the call the specific methods that will be used.
+In contrast with "step in," when catching a stacktrace Rebugger does not know the specific
+methods that will be used in advance of making the call.
 Consequently, Rebugger has to execute the call twice:
 
 - the first call is used to obtain a stacktrace
 - The trace is analyzed to obtain the specific methods, which are then replaced with versions
-  that place inputs in storage (see [Callee capture](@ref), with the difference that
-  after storage the full method body is then executed).
-- a second call (hopefully recreating the same error) is then made to store all the arguments
-  at each captured stage of the stacktrace.
+  that place inputs in storage; see [Callee capture](@ref), with the differences
+  + the original method is (temporarily) overwritten by one that executes the store
+  + this "storing" method also includes the full method body
+  These two changes ensure that the "call chain" is not broken.
+- a second call (recreating the same error, for functions that have deterministic execution)
+  is then made to store all the arguments at each captured stage of the stacktrace.
 - finally, the original methods are restored.
