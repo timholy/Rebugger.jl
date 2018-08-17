@@ -21,7 +21,7 @@ See the documentation:
 [![](https://img.shields.io/badge/docs-stable-blue.svg)](https://timholy.github.io/Rebugger.jl/stable)
 [![](https://img.shields.io/badge/docs-latest-blue.svg)](https://timholy.github.io/Rebugger.jl/latest)
 
-Note that Rebugger **requires additional configuration**.
+Note that Rebugger may benefit from custom configuration, as described in the documentation.
 
 In terms of usage, very briefly
 
