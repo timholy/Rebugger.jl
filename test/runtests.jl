@@ -143,8 +143,8 @@ Base.show(io::IO, ::ErrorsOnShow) = throw(ArgumentError("no show"))
 
             uuid2 = Rebugger.method_capture_from_callee(m, def; overwrite=true)
             @test uuid2 != uuid
-            fc = Rebugger.storefunc[uuid2]
-            @test fc([8,9], 2, "13"; kw1=Int, kw2=0) == ([10,11], 13, 0)
+            # note overwriting methods are not stored in storefunc, but our old `f` will call the new method
+            @test f([8,9], 2, "13"; kw1=Int, kw2=0) == ([10,11], 13, 0)
             Core.eval(RebuggerTesting, def)
             @test Rebugger.stored[uuid2].varnames == (:x, :y, :str, :kw1, :kw2, :kwargs, :A, :T)
             @test Rebugger.stored[uuid2].varvals  == ([8,9], 2, "13", Int, 0, empty_kwvarargs, Vector{Int}, Int)

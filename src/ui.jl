@@ -121,6 +121,11 @@ function stepin(s::LineEdit.MIState)
 end
 
 function capture_stacktrace(s)
+    if mode(s) isa LineEdit.PrefixHistoryPrompt
+        # history search, re-enter with the corresponding mode
+        LineEdit.accept_result(s, mode(s))
+        return capture_stacktrace(s)
+    end
     cmdstring = LineEdit.content(s)
     add_history(s, cmdstring)
     print(REPL.terminal(s), '\n')
@@ -134,10 +139,12 @@ function capture_stacktrace(s)
         REPL.add_history(hp, buf)
         take!(io)
     end
+    hp.cur_idx = length(hp.history) + 1
     if !isempty(uuids)
-        LineEdit.edit_clear(s)
-        LineEdit.edit_insert(s, hp.history[end])
         set_uuid!(header(s), uuids[end])
+        print(REPL.terminal(s), '\n')
+        LineEdit.edit_clear(s)
+        LineEdit.enter_prefix_search(s, find_prompt(s, LineEdit.PrefixHistoryPrompt), true)
     end
     return nothing
 end
@@ -227,10 +234,15 @@ end
 
 ## Key bindings
 
+# For adding keys to already-constructed keymaps
+
+add_key_stacktrace!(keymap) = LineEdit.add_nested_key!(keymap, "\e[15~", (s, o...) -> capture_stacktrace(s))
+add_key_stepin!(keymap)     = LineEdit.add_nested_key!(keymap, "\e\eOM", (s, o...) -> (stepin(s); enter_rebug(s)))
+
 # These work at the `julia>` prompt and the `rebug>` prompt
 const rebugger_modeswitch = Dict{Any,Any}(
     # F5
-    "\e[15~"   => (s, o...) -> (capture_stacktrace(s); enter_rebug(s)),
+    "\e[15~"   => (s, o...) -> capture_stacktrace(s),
     # Alt-Shift-Enter
     "\e\eOM"   => (s, o...) -> (stepin(s); enter_rebug(s)),
     # Deprecate F11
@@ -257,29 +269,5 @@ function mode_switch(s, other_prompt)
     end
 end
 
-# function modify(s, repl, diff)
-#     clear_io(state(s), repl)
-#     repl.header.n = max(0, repl.header.n + diff)
-#     refresh_header(s, repl; clearheader=false)
-# end
-
-# @noinline increment(s, repl) = modify(s, repl, +1)
-# @noinline decrement(s, repl) = modify(s, repl, -1)
-
-# special_keys = Dict{Any,Any}(
-#     '+' => (s, repl, str) -> increment(s, repl),
-#     '-' => (s, repl, str) -> decrement(s, repl),
-# )
-
-
-# # Modify repl keymap so '|' enters the count> prompt
-# # (Normally you'd use the atreplinit mechanism)
-# function enter_count(s)
-#     prompt = find_prompt(s, "count")
-#     # transition(s, prompt) do
-#     #     refresh_header(s, prompt.repl)
-#     # end
-#     transition(s, prompt)
-# end
 # julia_prompt = find_prompt(main_repl.interface, "julia")
 # julia_prompt.keymap_dict['|'] = (s, o...) -> enter_count(s)

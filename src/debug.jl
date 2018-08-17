@@ -31,8 +31,17 @@ struct EvalException   <: Exception
     exception
 end
 
-### Stacktraces
+function clear()
+    # Clear internal data. This forces regeneration of capture methods, which can be handy
+    # while debugging Rebugger itself.
+    stashed[] = nothing
+    empty!(stored)
+    empty!(storefunc)
+    empty!(storemap)
+    nothing
+end
 
+### Stacktraces
 
 """
     r = linerange(expr, offset=0)
@@ -392,7 +401,10 @@ function method_capture_from_callee(method, def; overwrite::Bool=false)
     # capture_name = _gensym(methname)
     mod = method.module
     capture_function = Expr(:function, overwrite ? sigex : rename_method(sigex, capture_name, callerobj), capture_body)
-    storefunc[uuid] = Core.eval(mod, capture_function)
+    result = Core.eval(mod, capture_function)
+    if !overwrite
+        storefunc[uuid] = result
+    end
     storemap[(method, overwrite)] = uuid
     return uuid
 end
