@@ -1,7 +1,8 @@
 using Rebugger
 using Rebugger: StopException
-using Test, UUIDs, InteractiveUtils
-using Revise
+using Test, UUIDs, InteractiveUtils, REPL, HeaderREPLs
+using REPL.LineEdit
+using Revise, Colors
 
 if !isdefined(Main, :RebuggerTesting)
     includet("testmodule.jl")   # so the source code here gets loaded
@@ -327,9 +328,81 @@ Base.show(io::IO, ::ErrorsOnShow) = throw(ArgumentError("no show"))
             foo(x, y) in Main.RebuggerTesting at """) # skip the "upper" part of the file location
             @test endswith(str, "testmodule.jl:7\n  x = 1\n  y errors in its show method")
         end
+
+        @testset "Demos" begin
+            function prepare_step_command(cmd, atstr)
+                LineEdit.edit_clear(mistate)
+                idx = findfirst(atstr, cmd)
+                @test !isempty(idx)
+                LineEdit.replace_line(mistate, cmd)
+                buf = LineEdit.buffer(mistate)
+                seek(buf, first(idx)-1)
+                return mistate
+            end
+
+            function do_capture_stacktrace(cmd)
+                l = length(hist.history)
+                LineEdit.replace_line(mistate, cmd)
+                Rebugger.capture_stacktrace(mistate)
+                LineEdit.transition(mistate, julia_prompt)
+                return l+1:length(hist.history)
+            end
+
+            if isdefined(Base, :active_repl)
+                repl = Base.active_repl
+                mistate = repl.mistate
+                julia_prompt = find_prompt(mistate, "julia")
+                LineEdit.transition(mistate, julia_prompt)
+                hist = julia_prompt.hist
+                header = Rebugger.rebug_prompt_ref[].repl.header
+                histdel = 0
+
+                @testset "show demo" begin  # this is a demo that appears in the documentation
+                    cmd1 = "show([1,2,4])"
+                    s = prepare_step_command(cmd1, cmd1)
+                    Rebugger.stepin(s)
+                    histdel += 1
+                    uuid = header.uuid
+                    @test Rebugger.getstored(string(uuid)) == ([1,2,4],)
+                    cmd2 = LineEdit.content(s)
+                    s = prepare_step_command(cmd2, "show(stdout::IO, x)")
+                    Rebugger.stepin(s)
+                    histdel += 1
+                    uuid = header.uuid
+                    @test Rebugger.getstored(string(uuid))[2] == [1,2,4]
+                    cmd3 = LineEdit.content(s)
+                    s = prepare_step_command(cmd3, "_show_empty")
+                    Rebugger.stepin(s)
+                    histdel += 1
+                    @test header.warnmsg == "Execution did not reach point"
+                end
+
+                @testset "Colors demo" begin  # another demo that appears in the documentation
+                    desc = "hsl(80%, 20%, 15%)"
+                    cmd = "colorant\"hsl(80%, 20%, 15%)\""
+                    local idx
+                    mktemp() do path, io
+                        redirect_stderr(io) do
+                            logs, _ = Test.collect_test_logs() do
+                                idx = do_capture_stacktrace(cmd)
+                            end
+                        end
+                        flush(io)
+                        seek(io, 0)
+                        @test countlines(io) >= 4
+                    end
+                    histdel += length(idx)
+                    @test length(idx) == 4
+                    @test hist.history[idx[1]] == cmd
+                    @test occursin("error", hist.history[idx[end]])
+                end
+
+                LineEdit.edit_clear(mistate)
+                l = length(hist.history)
+                deleteat!(hist.history, l-histdel+1:l)
+                deleteat!(hist.modes, l-histdel+1:l)
+                hist.cur_idx = length(hist.history)+1
+            end
+        end
     end
 end
-
-# TODO when I figure out how to test the REPL ui
-# Try stepping in to Plots.histogram(randn(1000))    # issue #3, Plots is listed as the module but the file is in RecipesBase
-# Try the same except position point at the beginning of histogram rather than Plots (or really any partial expression)

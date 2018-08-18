@@ -6,6 +6,10 @@ struct Stored
     method::Method
     varnames::VarnameType
     varvals
+
+    function Stored(m, names, vals)
+        new(m, names, safe_deepcopy(vals...))
+    end
 end
 
 const stashed     = Ref{Any}(nothing)
@@ -69,14 +73,14 @@ function findline(ex, order)
 end
 
 """
-    usrtrace, defs = pregenerated_stacktrace(trace, topname=:eval_noinfo)
+    usrtrace, defs = pregenerated_stacktrace(trace, topname=:capture_stacktrace)
 
 Generate a list of methods `usrtrace` and their corresponding definition-expressions `defs`
 from a stacktrace.
 Not all methods can be looked up, but this attempts to resolve, e.g., keyword-handling methods
 and so on.
 """
-function pregenerated_stacktrace(trace; topname = :eval_noinfo)
+function pregenerated_stacktrace(trace; topname = :capture_stacktrace)
     usrtrace, defs = Method[], RelocatableExpr[]
     methodsused = Set{Method}()
     for (i, sf) in enumerate(trace)
@@ -153,7 +157,7 @@ deterministic expressions that always result in the same call chain.
 function capture_stacktrace(mod::Module, command::Expr)
     errored = true
     trace = try
-        eval_noinfo(mod, command)
+        Core.eval(mod, command)
         errored = false
     catch
         stacktrace(catch_backtrace())
@@ -163,9 +167,11 @@ function capture_stacktrace(mod::Module, command::Expr)
     println(stderr, "Captured elements of stacktrace:")
     show(stderr, MIME("text/plain"), usrtrace)
     length(unique(usrtrace)) == length(usrtrace) || @error "the same method appeared twice, not supported. Try stepping into the command."
-    capture_stacktrace!(UUID[], usrtrace, defs) do
-        eval_noinfo(mod, command)
+    uuids = UUID[]
+    capture_stacktrace!(uuids, usrtrace, defs) do
+        Core.eval(mod, command)
     end
+    uuids
 end
 capture_stacktrace(command::Expr) = capture_stacktrace(Main, command)
 
@@ -273,6 +279,7 @@ function prepare_caller_capture!(io)  # for testing, needs to work on a normal I
     start = position(io)
     callstring = content(io, start=>bufend(io))
     callexpr, len = Meta.parse(callstring, 1; raise=false)
+    callexpr == nothing && throw(StepException("Got empty expression from $callstring"))
     isa(callexpr, Expr) || throw(StepException("Rebugger can only step into expressions, got $callexpr"))
     if callexpr.head == :error
         iend = len
@@ -384,7 +391,8 @@ function method_capture_from_callee(method, def; overwrite::Bool=false)
     allnames = (argnames..., kwnames..., paramnames...)
     qallnames = QuoteNode.(allnames)
     uuid = uuid1()
-    storeexpr = :(Main.Rebugger.stored[$uuid] = Main.Rebugger.Stored($method, ($(qallnames...),), Main.Rebugger.safe_deepcopy($(allnames...))))
+    uuidstr = string(uuid)
+    storeexpr = :(Main.Rebugger.setstored!($uuidstr=>Main.Rebugger.Stored($method, ($(qallnames...),), ($(allnames...),)) ) )
     capture_body = overwrite ? quote
         $storeexpr
         $body
@@ -443,6 +451,11 @@ Retrieve the values of stored arguments and type-parameters from the store speci
 that modify their inputs.
 """
 getstored(uuidstr::AbstractString) = safe_deepcopy(Main.Rebugger.stored[UUID(uuidstr)].varvals...)
+
+function setstored!(p::Pair{S,Stored}) where S<:AbstractString
+    uuidstr, val = p.first, p.second
+    Main.Rebugger.stored[UUID(uuidstr)] = val
+end
 
 kwstasher(; kwargs...) = kwargs
 
@@ -529,7 +542,6 @@ function signature_names!(sigex::ExLike)
                 sigex.args[i] = :($name::$argt)
             else
                 # This is a ::Type{T} argument. We should remove this from the list of parameters
-                push!(msgs, (parameternames, name))
                 parameternames = filter(!isequal(name), parameternames)
             end
         end
