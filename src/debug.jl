@@ -6,6 +6,10 @@ struct Stored
     method::Method
     varnames::VarnameType
     varvals
+
+    function Stored(m, names, vals)
+        new(m, names, safe_deepcopy(vals...))
+    end
 end
 
 const stashed     = Ref{Any}(nothing)
@@ -386,7 +390,8 @@ function method_capture_from_callee(method, def; overwrite::Bool=false)
     allnames = (argnames..., kwnames..., paramnames...)
     qallnames = QuoteNode.(allnames)
     uuid = uuid1()
-    storeexpr = :(Main.Rebugger.stored[$uuid] = Main.Rebugger.Stored($method, ($(qallnames...),), Main.Rebugger.safe_deepcopy($(allnames...))))
+    uuidstr = string(uuid)
+    storeexpr = :(Main.Rebugger.setstored!($uuidstr=>Main.Rebugger.Stored($method, ($(qallnames...),), ($(allnames...),)) ) )
     capture_body = overwrite ? quote
         $storeexpr
         $body
@@ -445,6 +450,11 @@ Retrieve the values of stored arguments and type-parameters from the store speci
 that modify their inputs.
 """
 getstored(uuidstr::AbstractString) = safe_deepcopy(Main.Rebugger.stored[UUID(uuidstr)].varvals...)
+
+function setstored!(p::Pair{S,Stored}) where S<:AbstractString
+    uuidstr, val = p.first, p.second
+    Main.Rebugger.stored[UUID(uuidstr)] = val
+end
 
 kwstasher(; kwargs...) = kwargs
 
