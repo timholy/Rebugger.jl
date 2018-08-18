@@ -221,7 +221,7 @@ var documenterSearchIndex = {"docs": [
     "page": "Developer reference",
     "title": "Rebugger.pregenerated_stacktrace",
     "category": "function",
-    "text": "usrtrace, defs = pregenerated_stacktrace(trace, topname=:eval_noinfo)\n\nGenerate a list of methods usrtrace and their corresponding definition-expressions defs from a stacktrace. Not all methods can be looked up, but this attempts to resolve, e.g., keyword-handling methods and so on.\n\n\n\n\n\n"
+    "text": "usrtrace, defs = pregenerated_stacktrace(trace, topname=:capture_stacktrace)\n\nGenerate a list of methods usrtrace and their corresponding definition-expressions defs from a stacktrace. Not all methods can be looked up, but this attempts to resolve, e.g., keyword-handling methods and so on.\n\n\n\n\n\n"
 },
 
 {
