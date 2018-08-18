@@ -542,7 +542,6 @@ function signature_names!(sigex::ExLike)
                 sigex.args[i] = :($name::$argt)
             else
                 # This is a ::Type{T} argument. We should remove this from the list of parameters
-                push!(msgs, (parameternames, name))
                 parameternames = filter(!isequal(name), parameternames)
             end
         end
