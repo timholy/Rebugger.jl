@@ -279,6 +279,7 @@ function prepare_caller_capture!(io)  # for testing, needs to work on a normal I
     start = position(io)
     callstring = content(io, start=>bufend(io))
     callexpr, len = Meta.parse(callstring, 1; raise=false)
+    callexpr == nothing && throw(StepException("Got empty expression from $callstring"))
     isa(callexpr, Expr) || throw(StepException("Rebugger can only step into expressions, got $callexpr"))
     if callexpr.head == :error
         iend = len
