@@ -69,14 +69,14 @@ function findline(ex, order)
 end
 
 """
-    usrtrace, defs = pregenerated_stacktrace(trace, topname=:eval_noinfo)
+    usrtrace, defs = pregenerated_stacktrace(trace, topname=:capture_stacktrace)
 
 Generate a list of methods `usrtrace` and their corresponding definition-expressions `defs`
 from a stacktrace.
 Not all methods can be looked up, but this attempts to resolve, e.g., keyword-handling methods
 and so on.
 """
-function pregenerated_stacktrace(trace; topname = :eval_noinfo)
+function pregenerated_stacktrace(trace; topname = :capture_stacktrace)
     usrtrace, defs = Method[], RelocatableExpr[]
     methodsused = Set{Method}()
     for (i, sf) in enumerate(trace)
@@ -153,7 +153,7 @@ deterministic expressions that always result in the same call chain.
 function capture_stacktrace(mod::Module, command::Expr)
     errored = true
     trace = try
-        eval_noinfo(mod, command)
+        Core.eval(mod, command)
         errored = false
     catch
         stacktrace(catch_backtrace())
@@ -163,9 +163,11 @@ function capture_stacktrace(mod::Module, command::Expr)
     println(stderr, "Captured elements of stacktrace:")
     show(stderr, MIME("text/plain"), usrtrace)
     length(unique(usrtrace)) == length(usrtrace) || @error "the same method appeared twice, not supported. Try stepping into the command."
-    capture_stacktrace!(UUID[], usrtrace, defs) do
-        eval_noinfo(mod, command)
+    uuids = UUID[]
+    capture_stacktrace!(uuids, usrtrace, defs) do
+        Core.eval(mod, command)
     end
+    uuids
 end
 capture_stacktrace(command::Expr) = capture_stacktrace(Main, command)
 
