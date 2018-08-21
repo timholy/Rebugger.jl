@@ -77,7 +77,23 @@ var documenterSearchIndex = {"docs": [
     "page": "Configuration",
     "title": "Configuration",
     "category": "section",
+    "text": ""
+},
+
+{
+    "location": "config.html#Run-on-REPL-startup-1",
+    "page": "Configuration",
+    "title": "Run on REPL startup",
+    "category": "section",
     "text": "If you decide you like Rebugger, you can add lines such as the following to your ~/.julia/config/startup.jl file:try\n    @eval using Revise\n    # Turn on Revise\'s file-watching behavior\n    Revise.async_steal_repl_backend()\ncatch\n    @warn \"Could not load Revise.\"\nend\n\ntry\n    @eval using Rebugger\n    # Activate Rebugger\'s key bindings\n    atreplinit(Rebugger.repl_init)\ncatch\n    @warn \"Could not turn on Rebugger key bindings.\"\nend"
+},
+
+{
+    "location": "config.html#Customize-keybindings-1",
+    "page": "Configuration",
+    "title": "Customize keybindings",
+    "category": "section",
+    "text": "It\'s possible that Rebugger\'s default keybindings don\'t work for you. This can be for various reasons. Some window managers override the Rebugger\'s keybindings with their own. Some terminals map the keybindings used by Rebugger to different escape sequences than those hardcoded in Rebugger. You can work around these issues by adding your own keybindings.To add your own keybindings, use Rebugger.add_keybindings(action=keybinding, ...). This can be done during a running Rebugger session. Here is an example that maps the \"step in\" action to the key \"F5\":julia> Rebugger.add_keybindings(stepin=\"\\e[17~\", stacktrace=\"\\e[18~\")To make your keybindings permanent, add them to your startup.jl file like so:try\n    @eval using Revise\n    # Turn on Revise\'s file-watching behavior\n    Revise.async_steal_repl_backend()\ncatch\n    @warn \"Could not load Revise.\"\nend\n\ntry\n    @eval using Rebugger\n    # Activate Rebugger\'s key bindings\n    Rebugger.keybindings[:stepin] = \"\\e[17~\"  # Add the keybinding F6 to step into a function.\n    Rebugger.keybindings[:stacktrace] = \"\\e[18~\"  # Add the keybinding F7 to print a stacktrace.\n    atreplinit(Rebugger.repl_init)\ncatch\n    @warn \"Could not load Rebugger.\"\nendBut how to find out the cryptic string that corresponds to the keybinding you want? Use Julia\'s read() function:julia> str = read(stdin, String)\n^[[17~\"\\e[17~\"  # Press F6\n\njulia> str\n\"\\e[17~\"After calling read(), press the keybinding that you want. Then, press Ctrl+D twice to terminate the input. The value of str is the cryptic string you are looking for."
 },
 
 {
