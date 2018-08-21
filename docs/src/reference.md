@@ -20,5 +20,6 @@ Rebugger.linerange
 ## Utilities
 
 ```@docs
+Rebugger.clear
 Rebugger.getstored
 ```

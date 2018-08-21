@@ -33,26 +33,20 @@ around these issues by adding your own keybindings.
 
 To add your own keybindings, use `Rebugger.add_keybindings(action=keybinding, ...)`.
 This can be done during a running Rebugger session. Here is an example that
-maps the "step in" action to the key "F5":
+maps the "step in" action to the key "F6" and "capture stacktrace" to "F7"
+
 ```julia
 julia> Rebugger.add_keybindings(stepin="\e[17~", stacktrace="\e[18~")
 ```
 
-To make your keybindings permanent, add them to your `startup.jl` file like so:
+To make your keybindings permanent, change the "Rebugger" section of your `startup.jl` file
+to something like:
 ```julia
-try
-    @eval using Revise
-    # Turn on Revise's file-watching behavior
-    Revise.async_steal_repl_backend()
-catch
-    @warn "Could not load Revise."
-end
-
 try
     @eval using Rebugger
     # Activate Rebugger's key bindings
-    Rebugger.keybindings[:stepin] = "\e[17~"  # Add the keybinding F6 to step into a function.
-    Rebugger.keybindings[:stacktrace] = "\e[18~"  # Add the keybinding F7 to print a stacktrace.
+    Rebugger.keybindings[:stepin] = "\e[17~"      # Add the keybinding F6 to step into a function.
+    Rebugger.keybindings[:stacktrace] = "\e[18~"  # Add the keybinding F7 to capture a stacktrace.
     atreplinit(Rebugger.repl_init)
 catch
     @warn "Could not load Rebugger."
@@ -64,7 +58,7 @@ want? Use Julia's `read()` function:
 
 ```julia
 julia> str = read(stdin, String)
-^[[17~"\e[17~"  # Press F6
+^[[17~"\e[17~"  # Press F6, followed by Ctrl+D, Ctrl+D
 
 julia> str
 "\e[17~"
@@ -73,3 +67,7 @@ julia> str
 After calling `read()`, press the keybinding that you want. Then, press `Ctrl+D`
 twice to terminate the input. The value of `str` is the cryptic string you are
 looking for.
+
+If you want to know whether your key binding is already taken, the
+[REPL documentation](https://docs.julialang.org/en/latest/stdlib/REPL/#Key-bindings-1)
+is a useful reference.
