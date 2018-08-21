@@ -20,7 +20,7 @@ include("deepcopy.jl")
 # Set up keys that enter rebug mode from the regular Julia REPL
 # This should be called from your ~/.julia/config/startup.jl file
 function repl_init(repl)
-    repl.interface = REPL.setup_interface(repl; extra_repl_keymap = rebugger_modeswitch)
+    repl.interface = REPL.setup_interface(repl; extra_repl_keymap = get_rebugger_modeswitch_dict())
 end
 
 function __init__()
@@ -34,18 +34,9 @@ function __init__()
         # Set up the custom "rebug" REPL
         main_repl = Base.active_repl
         repl = HeaderREPL(main_repl, RebugHeader())
-        interface = REPL.setup_interface(repl; extra_repl_keymap=[rebugger_modeswitch, rebugger_keys])
+        interface = REPL.setup_interface(repl; extra_repl_keymap=[get_rebugger_modeswitch_dict(), rebugger_keys])
         rebug_prompt_ref[] = interface.modes[end]
-        # Add F5 to the history prompt
-        history_prompt = find_prompt(main_repl.interface, LineEdit.PrefixHistoryPrompt)
-        add_key_stacktrace!(history_prompt.keymap_dict)
-        # If the REPL was already initialized, add the keys to the julia> prompt now
-        # (This will already be done if the user turned on the key bindings in her startup.jl file)
-        if repl_inited
-            julia_prompt = find_prompt(main_repl.interface, "julia")
-            add_key_stacktrace!(julia_prompt.keymap_dict)
-            add_key_stepin!(julia_prompt.keymap_dict)
-        end
+        add_keybindings(; override=repl_inited, keybindings...)
     end
 end
 

@@ -232,22 +232,47 @@ function HeaderREPLs.activate_header(header::RebugHeader, p, s, termbuf, term)
     set_uuid!(header, str)
 end
 
-## Key bindings
-
-# For adding keys to already-constructed keymaps
-
-add_key_stacktrace!(keymap) = LineEdit.add_nested_key!(keymap, "\e[15~", (s, o...) -> capture_stacktrace(s))
-add_key_stepin!(keymap)     = LineEdit.add_nested_key!(keymap, "\e\eOM", (s, o...) -> (stepin(s); enter_rebug(s)))
-
-# These work at the `julia>` prompt and the `rebug>` prompt
-const rebugger_modeswitch = Dict{Any,Any}(
-    # F5
-    "\e[15~"   => (s, o...) -> capture_stacktrace(s),
-    # Alt-Shift-Enter
-    "\e\eOM"   => (s, o...) -> (stepin(s); enter_rebug(s)),
-    # Deprecate F11
-    "\e[23~"   => (s, o...) -> (stepin(s); rebug_prompt_ref[].repl.header.warnmsg="stepin is now Alt-Shift-Enter"; enter_rebug(s)),
+const keybindings = Dict{Symbol,String}(
+    :stacktrace => "\e[15~",  # F5
+    :stepin => "\e\eOM",  # Alt-Shift-Enter
+    :deprecated_stepin => "\e[23~",  # F11
 )
+
+const modeswitches = Dict{Any,Any}(
+    :stacktrace => (s, o...) -> capture_stacktrace(s),
+    :stepin => (s, o...) -> (stepin(s); enter_rebug(s)),
+    :deprecated_stepin => (s, o...) -> (stepin(s); rebug_prompt_ref[].repl.header.warnmsg="stepin is now Alt-Shift-Enter"; enter_rebug(s)),
+)
+
+function get_rebugger_modeswitch_dict()
+    rebugger_modeswitch = Dict()
+    for (action, keybinding) in keybindings
+        rebugger_modeswitch[keybinding] = modeswitches[action]
+    end
+    rebugger_modeswitch
+end
+
+function add_keybindings(; override::Bool=false, kwargs...)
+    for (action, keybinding) in kwargs
+        if !(action in keys(keybindings))
+            error("$action is not a supported action.")
+        end
+        if !(keybinding isa String)
+            error("Expected the value for $action to be a String, got $keybinding instead")
+        end
+        keybindings[action] = keybinding
+        main_repl = Base.active_repl
+        history_prompt = find_prompt(main_repl.interface, LineEdit.PrefixHistoryPrompt)
+        julia_prompt = find_prompt(main_repl.interface, "julia")
+        rebug_prompt = find_prompt(main_repl.interface, "rebug")
+        # We need Any here because "cannot convert REPL.LineEdit.PrefixHistoryPrompt to an object of type REPL.LineEdit.Prompt"
+        prompts = Any[julia_prompt, rebug_prompt]
+        if action == :stacktrace push!(prompts, history_prompt) end
+        for prompt in prompts
+            LineEdit.add_nested_key!(prompt.keymap_dict, keybinding, modeswitches[action], override=override)
+        end
+    end
+end
 
 # These work only at the `rebug>` prompt
 const rebugger_keys = Dict{Any,Any}(
