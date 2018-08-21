@@ -35,9 +35,14 @@ struct EvalException   <: Exception
     exception
 end
 
+
+"""
+    Rebugger.clear()
+
+Clear internal data. This deletes storage associated with stored variables, but also
+forces regeneration of capture methods, which can be handy while debugging Rebugger itself.
+"""
 function clear()
-    # Clear internal data. This forces regeneration of capture methods, which can be handy
-    # while debugging Rebugger itself.
     stashed[] = nothing
     empty!(stored)
     empty!(storefunc)

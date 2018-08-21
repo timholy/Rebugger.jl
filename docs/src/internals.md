@@ -31,7 +31,7 @@ to enter `fcomplex` with appropriate arguments:
   with *caller capture*, but *callee capture* can also obtain the values of
   default arguments, keyword arguments, and type parameters.
 - Finally, Rebugger rewrites the REPL command-line buffer with a suitably-modified
-  version of the body of the appropriate method, so that the user can inspect and
+  version of the body of the called method, so that the user can inspect, run, and
   manipulate it.
 
 ### Caller capture
