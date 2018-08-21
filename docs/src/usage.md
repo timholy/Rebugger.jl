@@ -2,8 +2,8 @@
 
 Rebugger works from Julia's native REPL prompt. Currently there are two important keybindings:
 
-- Alt-Shift-Enter maps to "step in"
-- F5 maps to "capture stacktrace" (for commands that throw an error)
+- `Alt-Shift-Enter` (`Alt-E` on Windows) maps to "step in"
+- `F5` (`Alt-S` on Windows) maps to "capture stacktrace" (for commands that throw an error)
 
 ## Stepping in
 
@@ -200,4 +200,3 @@ The interactive stacktrace visits only those methods that appear in the original
 !!! note
     `Pkg` is one of Julia's standard libraries, and to step into or trace Julia's stdlibs
     you must build Julia from source.
-

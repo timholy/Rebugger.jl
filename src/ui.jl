@@ -233,8 +233,8 @@ function HeaderREPLs.activate_header(header::RebugHeader, p, s, termbuf, term)
 end
 
 const keybindings = Dict{Symbol,String}(
-    :stacktrace => "\e[15~",  # F5
-    :stepin => "\e\eOM",  # Alt-Shift-Enter
+    :stacktrace => Sys.iswindows() ? "\x1bs" : "\e[15~",  # Alt-s or F5
+    :stepin => Sys.iswindows() ? "\x1be" : "\e\eOM",  # Alt-e or Alt-Shift-Enter
     :deprecated_stepin => "\e[23~",  # F11
 )
 
