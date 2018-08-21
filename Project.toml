@@ -1,7 +1,7 @@
 name = "Rebugger"
 uuid = "6bca5d8e-94aa-11e8-25be-f7463cf244ff"
 authors = ["Tim Holy <tim.holy@gmail.com>"]
-version = "v0.1.1"
+version = "v0.1.2"
 
 [deps]
 HeaderREPLs = "0c95fe84-97b8-11e8-34fd-7ba5e722bbed"
