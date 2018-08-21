@@ -233,19 +233,30 @@ function HeaderREPLs.activate_header(header::RebugHeader, p, s, termbuf, term)
 end
 
 const keybindings = Dict{Symbol,String}(
-    :stacktrace => "\e[15~",  # F5
-    :stepin => "\e\eOM",  # Alt-Shift-Enter
-    :deprecated_stepin => "\e[23~",  # F11
+    :stacktrace => "\es",                        # Alt-s ("[s]tacktrace")
+    :stepin => "\ee",                            # Alt-e ("[e]nter")
+)
+const deprecated_keybindings = Dict{Symbol,Vector{String}}(
+    :deprecated_stacktrace => ["\e[15~"],        # F5
+    :deprecated_stepin => ["\e\eOM", "\e[23~"],  # Alt-Shift-Enter, F11
 )
 
 const modeswitches = Dict{Any,Any}(
     :stacktrace => (s, o...) -> capture_stacktrace(s),
     :stepin => (s, o...) -> (stepin(s); enter_rebug(s)),
-    :deprecated_stepin => (s, o...) -> (stepin(s); rebug_prompt_ref[].repl.header.warnmsg="stepin is now Alt-Shift-Enter"; enter_rebug(s)),
+    :deprecated_stacktrace => (s, o...) -> (rebug_prompt_ref[].repl.header.warnmsg="stacktrace is now Alt-s (see docs for customization options)"; capture_stacktrace(s)),
+    :deprecated_stepin => (s, o...) -> (stepin(s); rebug_prompt_ref[].repl.header.warnmsg="stepin is now Alt-e (see docs for customization options)"; enter_rebug(s)),
 )
 
 function get_rebugger_modeswitch_dict()
     rebugger_modeswitch = Dict()
+    # Process the deprecated bindings first; that way, if the user customizes it back
+    # to one of the deprecated choices, it will override without issuing the warning.
+    for (action, list) in deprecated_keybindings
+        for keybinding in list
+            rebugger_modeswitch[keybinding] = modeswitches[action]
+        end
+    end
     for (action, keybinding) in keybindings
         rebugger_modeswitch[keybinding] = modeswitches[action]
     end
@@ -253,23 +264,31 @@ function get_rebugger_modeswitch_dict()
 end
 
 function add_keybindings(; override::Bool=false, kwargs...)
+    main_repl = Base.active_repl
+    history_prompt = find_prompt(main_repl.interface, LineEdit.PrefixHistoryPrompt)
+    julia_prompt = find_prompt(main_repl.interface, "julia")
+    rebug_prompt = find_prompt(main_repl.interface, "rebug")
     for (action, keybinding) in kwargs
-        if !(action in keys(keybindings))
+        if !(action in keys(keybindings)) && !(action in keys(deprecated_keybindings))
             error("$action is not a supported action.")
         end
-        if !(keybinding isa String)
-            error("Expected the value for $action to be a String, got $keybinding instead")
+        if !(keybinding isa Union{String,Vector{String}})
+            error("Expected the value for $action to be a String or Vector{String}, got $keybinding instead")
         end
-        keybindings[action] = keybinding
-        main_repl = Base.active_repl
-        history_prompt = find_prompt(main_repl.interface, LineEdit.PrefixHistoryPrompt)
-        julia_prompt = find_prompt(main_repl.interface, "julia")
-        rebug_prompt = find_prompt(main_repl.interface, "rebug")
+        if haskey(keybindings, action)
+            keybindings[action] = keybinding
+        end
         # We need Any here because "cannot convert REPL.LineEdit.PrefixHistoryPrompt to an object of type REPL.LineEdit.Prompt"
         prompts = Any[julia_prompt, rebug_prompt]
-        if action == :stacktrace push!(prompts, history_prompt) end
+        if action ∈ (:stacktrace, :deprecated_stacktrace) push!(prompts, history_prompt) end
         for prompt in prompts
-            LineEdit.add_nested_key!(prompt.keymap_dict, keybinding, modeswitches[action], override=override)
+            if keybinding isa Vector
+                for kb in keybinding
+                    LineEdit.add_nested_key!(prompt.keymap_dict, kb, modeswitches[action], override=override)
+                end
+            else
+                LineEdit.add_nested_key!(prompt.keymap_dict, keybinding, modeswitches[action], override=override)
+            end
         end
     end
 end

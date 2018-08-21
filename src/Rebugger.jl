@@ -36,7 +36,7 @@ function __init__()
         repl = HeaderREPL(main_repl, RebugHeader())
         interface = REPL.setup_interface(repl; extra_repl_keymap=[get_rebugger_modeswitch_dict(), rebugger_keys])
         rebug_prompt_ref[] = interface.modes[end]
-        add_keybindings(; override=repl_inited, keybindings...)
+        add_keybindings(; override=repl_inited, deprecated_keybindings..., keybindings...)
     end
 end
 
