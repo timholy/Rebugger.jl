@@ -60,7 +60,8 @@ end
 ```
 
 But how to find out the cryptic string that corresponds to the keybinding you
-want? Use Julia's `read()` function:
+want? Either use Julia's `read()` function as demonstrated below or refer to
+the [relevant section in Julia's manual](https://docs.julialang.org/en/stable/stdlib/REPL/#Key-bindings-1).
 
 ```julia
 julia> str = read(stdin, String)
