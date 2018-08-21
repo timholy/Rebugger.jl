@@ -67,3 +67,7 @@ julia> str
 After calling `read()`, press the keybinding that you want. Then, press `Ctrl+D`
 twice to terminate the input. The value of `str` is the cryptic string you are
 looking for.
+
+If you want to know whether your key binding is already taken, the
+[REPL documentation](https://docs.julialang.org/en/latest/stdlib/REPL/#Key-bindings-1)
+is a useful reference.
