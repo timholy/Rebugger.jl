@@ -1,10 +1,10 @@
 name = "Rebugger"
-uuid = "6bca5d8e-94aa-11e8-25be-f7463cf244ff"
+uuid = "ee283ea6-eecd-56e3-beb3-83eb4d3c31e9"
 authors = ["Tim Holy <tim.holy@gmail.com>"]
 version = "v0.1.2"
 
 [deps]
-HeaderREPLs = "0c95fe84-97b8-11e8-34fd-7ba5e722bbed"
+HeaderREPLs = "54d51984-71c9-52bd-8df9-6718e63e4153"
 REPL = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
