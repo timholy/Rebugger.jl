@@ -26,12 +26,14 @@ Note that Rebugger may benefit from custom configuration, as described in the do
 In terms of usage, very briefly
 
 - "step in" is achieved by positioning your cursor in your input line to the beginning of
-  the call expression you wish to descend into. Then hit <kbd> Alt-e </kbd> ("enter").
-- for an expression that generates an error, hit <kbd> Alt-s </kbd> ("stacktrace")
+  the call expression you wish to descend into. Then hit <kbd> Meta-e </kbd> ("enter").
+- for an expression that generates an error, hit <kbd> Meta-s </kbd> ("stacktrace")
   to capture the stacktrace and populate your REPL history with a sequence of expressions
   that contain the method bodies of the calls in the stacktrace.
 
-Complete examples are provided in the documentation.
+<kbd> Meta </kbd> means <kbd> Esc </kbd> or, if your system is configured appropriately,
+<kbd> Alt </kbd> (Linux/Windows) or <kbd> Option </kbd> (Macs).
+More information and complete examples are provided in the documentation.
 
 ## Status
 
