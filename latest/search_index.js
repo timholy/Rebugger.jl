@@ -37,7 +37,7 @@ var documenterSearchIndex = {"docs": [
     "page": "Usage",
     "title": "Usage",
     "category": "section",
-    "text": "Rebugger works from Julia\'s native REPL prompt. Currently there are two important keybindings:Alt-e maps to \"enter\" or \"step in\"\nAlt-s maps to \"stacktrace\" (for commands that throw an error)"
+    "text": "Rebugger works from Julia\'s native REPL prompt. Currently there are two important keybindings:Alt-e maps to \"enter\" or \"step in\"\nAlt-s maps to \"stacktrace\" (for commands that throw an error)If you\'re on OSX, you may want to enable  \"Use option as the Meta key\" in your Terminal settings to avoid the need to press Esc before each Rebugger command."
 },
 
 {
