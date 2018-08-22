@@ -5,6 +5,10 @@ Rebugger works from Julia's native REPL prompt. Currently there are two importan
 - Alt-e maps to "enter" or "step in"
 - Alt-s maps to "stacktrace" (for commands that throw an error)
 
+If you're on OSX, you may want to enable 
+"[Use `option` as the Meta key](https://github.com/timholy/Rebugger.jl/issues/28#issuecomment-414852133)"
+in your Terminal settings to avoid the need to press Esc before each Rebugger command.
+
 ## Stepping in
 
 Select the expression you want to step into by positioning "point" (your cursor)
