@@ -33,6 +33,10 @@ Base.show(io::IO, ::ErrorsOnShow) = throw(ArgumentError("no show"))
             ex = :(f(Tuseless::Type{T}, ::IndexStyle, x::Int) where T)
             @test Rebugger.signature_names!(ex) == (:f, (:Tuseless, :__IndexStyle_1, :x), (), (:T,))
             @test ex == :(f(Tuseless::Type{T}, __IndexStyle_1::IndexStyle, x::Int) where T)
+            # issue #34
+            ex = :(_mapreduce_dim(f, op, ::NamedTuple{()}, A::AbstractArray, ::Colon))
+            @test Rebugger.signature_names!(ex) == (:_mapreduce_dim, (:f, :op, :__NamedTuple_1, :A, :__Colon_1), (), ())
+            @test ex == :(_mapreduce_dim(f, op, __NamedTuple_1::NamedTuple{()}, A::AbstractArray, __Colon_1::Colon))
         end
         @testset "Caller buffer capture and insertion" begin
             function run_insertion(str, atstr)

@@ -508,9 +508,13 @@ function signature_names!(sigex::ExLike)
             # This argument has a type but no name
             return arg, true
         end
-        if isa(arg, Expr) && arg.head == :curly && arg.args[1] == :Type
-            # Argument of the form ::Type{T}
-            return arg.args[2], false
+        if isa(arg, Expr) && arg.head == :curly
+            if arg.args[1] == :Type
+                # Argument of the form ::Type{T}
+                return arg.args[2], false
+            elseif arg.args[1] == :NamedTuple
+                return :NamedTuple, true, arg
+            end
         end
         return arg
     end
@@ -537,20 +541,22 @@ function signature_names!(sigex::ExLike)
     argnames = Union{Symbol,Expr}[]
     for i = offset+1:length(sigex.args)
         arg = sigex.args[i]
-        name = argname(arg)
-        if name isa Tuple
-            name, genname = name
-            if genname
+        retname = argname(arg)
+        if retname isa Tuple
+            should_gen = retname[2]
+            if should_gen
                 # This argument is missing a real name
-                argt = name
-                name = genunderscored(argt)
+                argt = length(retname) == 3 ? retname[3] : retname[1]
+                name = genunderscored(retname[1])
                 sigex.args[i] = :($name::$argt)
             else
                 # This is a ::Type{T} argument. We should remove this from the list of parameters
+                name = retname[1]
                 parameternames = filter(!isequal(name), parameternames)
             end
+            retname = name
         end
-        push!(argnames, name)
+        push!(argnames, retname)
     end
 
     return sigex.args[1], tuple(argnames...), kwnames, tuple(parameternames...)
