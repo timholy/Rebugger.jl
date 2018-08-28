@@ -1,7 +1,7 @@
 # Limitations
 
 Rebugger is in the early stages of development, and users should currently expect bugs (please do [report](https://github.com/timholy/Rebugger.jl/issues) them).
-Neverthess it may be of net benefit for some users.
+Nevertheless it may be of net benefit for some users.
 
 Here are some known shortcomings:
 
