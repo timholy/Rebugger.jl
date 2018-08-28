@@ -12,7 +12,7 @@ UUIDs = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
 
 [compat]
 HeaderREPLs = "≥0.2.0"
-Revise = "≥0.6.9"
+Revise = "≥0.7.2"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"

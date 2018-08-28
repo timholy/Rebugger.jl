@@ -155,7 +155,7 @@ Base.show(io::IO, ::ErrorsOnShow) = throw(ArgumentError("no show"))
             @test Rebugger.stored[uuid2].varvals  == ([8,9], 2, "13", Int, 0, empty_kwvarargs, Vector{Int}, Int)
 
             def = quote
-                modifies!(x) = (x[1] += 1; x)
+                @inline modifies!(x) = (x[1] += 1; x)
             end
             f = Core.eval(RebuggerTesting, def)
             @test f([8,9]) == [9,9]
