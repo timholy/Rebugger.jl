@@ -138,7 +138,7 @@ function pregenerated_stacktrace(trace; topname = :capture_stacktrace)
                 end
             else
                 method ∈ methodsused && continue
-                def = Revise.get_def(method)
+                def = Revise.get_def(method; modified_files=String[])
                 def isa ExLike || continue
                 push!(defs, def)
                 push!(usrtrace, method)
@@ -370,6 +370,7 @@ The returned `uuid` can be used for accessing the stored data.
 function method_capture_from_callee(method, def; overwrite::Bool=false)
     uuid = get(storemap, (method, overwrite), nothing)
     uuid != nothing && return uuid
+    def = pop_annotations(def)
     sigr, body = get_signature(def), unquote(funcdef_body(def))
     sigr == nothing && throw(SignatureError(method))
     sigex = convert(Expr, sigr)
@@ -425,7 +426,7 @@ function method_capture_from_callee(method; kwargs...)
     # Could use a default arg above but this generates a more understandable error message
     local def
     try
-        def = get_def(method)
+        def = get_def(method; modified_files=String[])
     catch err
         throw(DefMissing(method, err))
     end
@@ -437,7 +438,7 @@ function generate_let_command(method::Method, uuid::UUID)
     s = stored[uuid]
     @assert method == s.method
     argstring = '(' * join(s.varnames, ", ") * (length(s.varnames)==1 ? ",)" : ')')
-    body = convert(Expr, striplines!(deepcopy(funcdef_body(get_def(method)))))
+    body = convert(Expr, striplines!(deepcopy(funcdef_body(get_def(method; modified_files=String[])))))
     return """
         @eval $(method.module) let $argstring = Main.Rebugger.getstored(\"$uuid\")
         $body
@@ -576,6 +577,14 @@ function rename_method!(ex::ExLike, name::Symbol, callerobj)
     return ex
 end
 rename_method(ex::ExLike, name::Symbol, callerobj) = rename_method!(copy(ex), name, callerobj)
+
+function pop_annotations(def::ExLike)
+    while Revise.is_trivial_block_wrapper(def) || (
+            def isa ExLike && def.head == :macrocall && def.args[1] ∈ Revise.poppable_macro)
+        def = def.args[end]
+    end
+    def
+end
 
 # Use to re-evaluate an expression without leaving "breadcrumbs" about where
 # the eval is coming from. This is used below to prevent the re-evaluaton of an
