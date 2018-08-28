@@ -138,7 +138,7 @@ function pregenerated_stacktrace(trace; topname = :capture_stacktrace)
                 end
             else
                 method ∈ methodsused && continue
-                def = Revise.get_def(method)
+                def = Revise.get_def(method; modified_files=String[])
                 def isa ExLike || continue
                 push!(defs, def)
                 push!(usrtrace, method)
@@ -426,7 +426,7 @@ function method_capture_from_callee(method; kwargs...)
     # Could use a default arg above but this generates a more understandable error message
     local def
     try
-        def = get_def(method)
+        def = get_def(method; modified_files=String[])
     catch err
         throw(DefMissing(method, err))
     end
@@ -438,7 +438,7 @@ function generate_let_command(method::Method, uuid::UUID)
     s = stored[uuid]
     @assert method == s.method
     argstring = '(' * join(s.varnames, ", ") * (length(s.varnames)==1 ? ",)" : ')')
-    body = convert(Expr, striplines!(deepcopy(funcdef_body(get_def(method)))))
+    body = convert(Expr, striplines!(deepcopy(funcdef_body(get_def(method; modified_files=String[])))))
     return """
         @eval $(method.module) let $argstring = Main.Rebugger.getstored(\"$uuid\")
         $body
