@@ -438,7 +438,7 @@ function generate_let_command(method::Method, uuid::UUID)
     s = stored[uuid]
     @assert method == s.method
     argstring = '(' * join(s.varnames, ", ") * (length(s.varnames)==1 ? ",)" : ')')
-    body = convert(Expr, striplines!(deepcopy(funcdef_body(get_def(method; modified_files=String[])))))
+    body = convert(Expr, striplines!(copy(funcdef_body(get_def(method; modified_files=String[])))))
     return """
         @eval $(method.module) let $argstring = Main.Rebugger.getstored(\"$uuid\")
         $body
