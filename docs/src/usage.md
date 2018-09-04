@@ -5,11 +5,11 @@ Rebugger works from Julia's native REPL prompt. Currently there are two importan
 - Meta-e maps to "enter" or "step in"
 - Meta-s maps to "stacktrace" (for commands that throw an error)
 
-Meta reliably maps to `Esc`, and if using `Esc` you should hit the two keys in
+Meta often maps to `Esc`, and if using `Esc` you should hit the two keys in
 sequence rather than simultaneously.
-For many users `Alt` (or `Option`) may be more convenient, as it can be pressed
+For many users `Alt` (sometimes specifically `Left-Alt`, or `Option` on macs) may be more convenient, as it can be pressed
 simultaneously with the key.
-If you're on OSX, you may want to enable
+If you're on macOS, you may want to enable
 "[Use `option` as the Meta key](https://github.com/timholy/Rebugger.jl/issues/28#issuecomment-414852133)"
 in your Terminal settings to avoid the need to press Esc before each Rebugger command.
 
