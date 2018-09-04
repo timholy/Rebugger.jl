@@ -16,7 +16,7 @@ The name "Rebugger" has 3 meanings:
 
 ## Installation and usage
 
-See the documentation:
+**See the documentation**:
 
 [![](https://img.shields.io/badge/docs-stable-blue.svg)](https://timholy.github.io/Rebugger.jl/stable)
 [![](https://img.shields.io/badge/docs-latest-blue.svg)](https://timholy.github.io/Rebugger.jl/latest)
@@ -34,6 +34,7 @@ In terms of usage, very briefly
 <kbd> Meta </kbd> means <kbd> Esc </kbd> or, if your system is configured appropriately,
 <kbd> Alt </kbd> (Linux/Windows) or <kbd> Option </kbd> (Macs).
 More information and complete examples are provided in the documentation.
+If your operating system assigns these keybindings to something else, you can [configure them to keys of your own choosing](https://timholy.github.io/Rebugger.jl/latest/config.html#Customize-keybindings-1).
 
 ## Status
 
