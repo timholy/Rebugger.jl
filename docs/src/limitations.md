@@ -35,6 +35,12 @@ The default meta key on Ubuntu is left Alt, which is equivalent to Esc Alt on th
 
 ### Ubuntu 16.04
 
-Rebugger may not work with the default keyboard shortucts on Ubuntu 16.04. The root of the issue is not solved yet. As a walkaround please re-map the meta keys to function keys, e.g. with `Rebugger.add_keybindings(stepin="\e[17~", stacktrace="\e[18~")` to map step-in to F6 and stacktrace to F7.
+Rebugger may not work with the default keyboard shortucts on Ubuntu 16.04. The root of the issue is not solved yet. As a walkaround please re-map the meta keys to function keys, e.g. adding to `startup.jl`
+
+```
+    Rebugger.keybindings[:stepin] = "\e[17~"      # Add the keybinding F6 to step into a function.
+    Rebugger.keybindings[:stacktrace] = "\e[18~"  # Add the keybinding F7 to capture a stacktrace.
+``` 
+as stated in the [Customize keybindings](@ref) section to map step-in to F6 and stacktrace to F7.
 
 

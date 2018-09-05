@@ -53,6 +53,8 @@ catch
 end
 ```
 
+Besides the obvious, there is one more reason to insert the keybindings into the `startup.jl`, which has to do with the order in which keybindings are added to the REPL and whether any "stale" bindings that might have side effects are still present. Doing it before `atreplinit` means that there won't be any stale bindings.
+
 But how to find out the cryptic string that corresponds to the keybinding you
 want? Use Julia's `read()` function:
 
