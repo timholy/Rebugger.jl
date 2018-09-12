@@ -35,7 +35,7 @@ stacktrace-navigation features of graphical debuggers.
 Thus Rebugger offers a command-line experience that is more closely aligned with
 graphical debuggers than the traditional `s`, `n`, `up`, `c` commands of a console debugger.
 
-## Installation and configuration
+## Installation
 
 Begin with
 
@@ -49,21 +49,34 @@ You can experiment with Rebugger with just
 julia> using Rebugger
 ```
 
-If you decide you like it (see [Usage](@ref)), you can optionally configure it so that it
+If you eventually decide you like Rebugger, you can optionally configure it so that it
 is always available (see [Configuration](@ref)).
 
-## Note for Ubuntu users
+## Keyboard shortcuts
 
-The default meta key on Ubuntu is left Alt, which is equivalent to Esc Alt on the default Gnome terminal emulator. 
+Most of Rebugger's functionality gets triggered by special keyboard shortcuts added to Julia's REPL.
+Unfortunately, different operating systems and desktop environments vary considerably in
+their key bindings, and it is possible that the default choices in Rebugger are
+already assigned other meanings on your platform.
+There does not appear to be any one set of choices that works on all platforms.
 
-### Ubuntu 16.04
+The best strategy is to try the demos in [Usage](@ref); if the default shortcuts
+are already taken on your platform, then you can easily configure Rebugger
+to use different bindings (see [Configuration](@ref)).
 
-Rebugger may not work with the default keyboard shortucts on Ubuntu 16.04. The root of the issue is not solved yet. As a walkaround please re-map the meta keys to function keys, e.g. adding to `startup.jl`
+Some platforms are known to require or benefit from special attention:
 
-```
-    Rebugger.keybindings[:stepin] = "\e[17~"      # Add the keybinding F6 to step into a function.
-    Rebugger.keybindings[:stacktrace] = "\e[18~"  # Add the keybinding F7 to capture a stacktrace.
-``` 
-as stated in the [Customize keybindings](@ref) section to map step-in to F6 and stacktrace to F7.
+#### macOS
 
+If you're on macOS, you may want to enable
+"[Use `option` as the Meta key](https://github.com/timholy/Rebugger.jl/issues/28#issuecomment-414852133)"
+in your Terminal settings to avoid the need to press Esc before each Rebugger command.
 
+#### Ubuntu
+
+The default meta key on Ubuntu is left Alt, which is equivalent to Esc Alt on the default
+Gnome terminal emulator.
+However, even with this tip you may encounter problems because Rebugger's default key bindings
+may be assigned to activate menu options within the terminal window, and
+[this appears not to be configurable]( https://bugs.launchpad.net/ubuntu/+source/nautilus/+bug/1113420).
+As a consequence Ubuntu users will very likely need to [Customize keybindings](@ref).
