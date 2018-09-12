@@ -25,11 +25,9 @@ end
 
 ## Customize keybindings
 
-It's possible that Rebugger's default keybindings don't work for you.
-This can be for various reasons. Some window managers override the Rebugger's
-keybindings with their own. Some terminals map the keybindings used by Rebugger
-to different escape sequences than those hardcoded in Rebugger. You can work
-around these issues by adding your own keybindings.
+As described in [Keyboard shortcuts](@ref), it's possible that Rebugger's default keybindings
+don't work for you.
+You can work around problems by changing them to keys of your own choosing.
 
 To add your own keybindings, use `Rebugger.add_keybindings(action=keybinding, ...)`.
 This can be done during a running Rebugger session. Here is an example that
@@ -53,6 +51,13 @@ catch
 end
 ```
 
+!!! note
+
+    Besides the obvious, one reason to insert the keybindings into the `startup.jl`,
+    has to do with the order in which keybindings are added to the REPL and whether any
+    "stale" bindings that might have side effects are still present.
+    Doing it before `atreplinit` means that there won't be any stale bindings.
+
 But how to find out the cryptic string that corresponds to the keybinding you
 want? Use Julia's `read()` function:
 
@@ -70,4 +75,5 @@ looking for.
 
 If you want to know whether your key binding is already taken, the
 [REPL documentation](https://docs.julialang.org/en/latest/stdlib/REPL/#Key-bindings-1)
-is a useful reference.
+as well as any documentation on your operating system, desktop environment, and/or
+terminal program can be useful references.
