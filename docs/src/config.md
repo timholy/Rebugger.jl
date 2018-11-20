@@ -6,20 +6,19 @@ If you decide you like Rebugger, you can add lines such as the following to your
 `~/.julia/config/startup.jl` file:
 
 ```julia
-try
-    @eval using Revise
-    # Turn on Revise's file-watching behavior
-    Revise.async_steal_repl_backend()
-catch
-    @warn "Could not load Revise."
-end
+atreplinit() do repl
+    try
+        @eval using Revise
+        @async Revise.wait_steal_repl_backend()
+    catch
+        @warn "Could not load Revise."
+    end
 
-try
-    @eval using Rebugger
-    # Activate Rebugger's key bindings
-    atreplinit(Rebugger.repl_init)
-catch
-    @warn "Could not turn on Rebugger key bindings."
+    try
+        @eval using Rebugger
+    catch
+        @warn "Could not load Rebugger."
+    end
 end
 ```
 
@@ -40,14 +39,17 @@ julia> Rebugger.add_keybindings(stepin="\e[17~", stacktrace="\e[18~")
 To make your keybindings permanent, change the "Rebugger" section of your `startup.jl` file
 to something like:
 ```julia
-try
-    @eval using Rebugger
-    # Activate Rebugger's key bindings
-    Rebugger.keybindings[:stepin] = "\e[17~"      # Add the keybinding F6 to step into a function.
-    Rebugger.keybindings[:stacktrace] = "\e[18~"  # Add the keybinding F7 to capture a stacktrace.
-    atreplinit(Rebugger.repl_init)
-catch
-    @warn "Could not load Rebugger."
+atreplinit() do repl
+    ...
+
+    try
+        @eval using Rebugger
+        # Activate Rebugger's key bindings
+        Rebugger.keybindings[:stepin] = "\e[17~"      # Add the keybinding F6 to step into a function.
+        Rebugger.keybindings[:stacktrace] = "\e[18~"  # Add the keybinding F7 to capture a stacktrace.
+    catch
+        @warn "Could not load Rebugger."
+    end
 end
 ```
 
