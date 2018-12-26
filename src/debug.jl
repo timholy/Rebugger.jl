@@ -169,6 +169,7 @@ function capture_stacktrace(mod::Module, command::Expr)
     end
     errored || error("$command did not throw an error")
     usrtrace, defs = pregenerated_stacktrace(trace)
+    isempty(usrtrace) && error("failed to capture any elements of the stacktrace")
     println(stderr, "Captured elements of stacktrace:")
     show(stderr, MIME("text/plain"), usrtrace)
     length(unique(usrtrace)) == length(usrtrace) || @error "the same method appeared twice, not supported. Try stepping into the command."

@@ -402,6 +402,20 @@ Base.show(io::IO, ::ErrorsOnShow) = throw(ArgumentError("no show"))
                     @test occursin("error", hist.history[idx[end]])
                 end
 
+                @testset "Empty stacktraces" begin
+                    cmd = "ccall(:jl_throw, Nothing, (Any,), ArgumentError(\"oops\"))"
+                    mktemp() do path, io
+                        redirect_stderr(io) do
+                            LineEdit.replace_line(mistate, cmd)
+                            @test Rebugger.capture_stacktrace(mistate) === nothing
+                            LineEdit.transition(mistate, julia_prompt)
+                        end
+                        flush(io)
+                        str = read(path, String)
+                        @test occursin("failed to capture", str)
+                    end
+                end
+
                 LineEdit.edit_clear(mistate)
                 l = length(hist.history)
                 deleteat!(hist.history, l-histdel+1:l)

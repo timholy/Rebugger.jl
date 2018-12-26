@@ -133,7 +133,13 @@ function capture_stacktrace(s)
     add_history(s, cmdstring)
     print(REPL.terminal(s), '\n')
     expr = Meta.parse(cmdstring)
-    uuids = capture_stacktrace(expr)
+    local uuids
+    try
+        uuids = capture_stacktrace(expr)
+    catch err
+        print(stderr, err)
+        return nothing
+    end
     io = IOBuffer()
     buf = FakePrompt(io)
     hp = mode(s).hist
