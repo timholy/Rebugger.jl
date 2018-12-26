@@ -397,7 +397,7 @@ Base.show(io::IO, ::ErrorsOnShow) = throw(ArgumentError("no show"))
                         @test countlines(io) >= 4
                     end
                     histdel += length(idx)
-                    @test length(idx) == 4
+                    @test length(idx) >= 5
                     @test hist.history[idx[1]] == cmd
                     @test occursin("error", hist.history[idx[end]])
                 end
