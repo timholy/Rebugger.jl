@@ -310,7 +310,8 @@ Base.show(io::IO, ::ErrorsOnShow) = throw(ArgumentError("no show"))
             st = try RebuggerTesting.kwfunctop(3) catch; stacktrace(catch_backtrace()) end
             usrtrace, defs = Rebugger.pregenerated_stacktrace(st; topname=Symbol("macro expansion"))
             @test length(unique(usrtrace)) == length(usrtrace)
-            @test usrtrace[1] == @which RebuggerTesting.kwfuncmiddle(1,1)
+            m = @which RebuggerTesting.kwfuncmiddle(1,1)
+            @test usrtrace[1] == m || usrtrace[2] == m
         end
     end
 
