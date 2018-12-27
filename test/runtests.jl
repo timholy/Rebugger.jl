@@ -312,6 +312,33 @@ Base.show(io::IO, ::ErrorsOnShow) = throw(ArgumentError("no show"))
             @test length(unique(usrtrace)) == length(usrtrace)
             m = @which RebuggerTesting.kwfuncmiddle(1,1)
             @test usrtrace[1] == m || usrtrace[2] == m
+
+            # A case that tests inlining and several other aspects of argument capture
+            ex = :([1, 2, 3] .* [1, 2])
+            # Capture the actual stack trace, trimming it to avoid anything involving the `eval` itself
+            trace = try
+                Core.eval(Main, ex)
+            catch
+                stacktrace(catch_backtrace())
+            end
+            i = 1
+            while i <= length(trace)
+                t = trace[i]
+                if t.func == Symbol("top-level scope")
+                    deleteat!(trace, i:length(trace))
+                end
+                i += 1
+            end
+            # Get the capture from Rebugger
+            uuids = mktemp() do path, iostacktrace
+                redirect_stderr(iostacktrace) do
+                    Rebugger.capture_stacktrace(Main, ex)
+                end
+            end
+            @test length(uuids) == length(trace)
+            for (uuid, t) in zip(reverse(uuids), trace)
+                @test Rebugger.stored[uuid].method.name == t.func
+            end
         end
     end
 
