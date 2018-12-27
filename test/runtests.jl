@@ -310,7 +310,35 @@ Base.show(io::IO, ::ErrorsOnShow) = throw(ArgumentError("no show"))
             st = try RebuggerTesting.kwfunctop(3) catch; stacktrace(catch_backtrace()) end
             usrtrace, defs = Rebugger.pregenerated_stacktrace(st; topname=Symbol("macro expansion"))
             @test length(unique(usrtrace)) == length(usrtrace)
-            @test usrtrace[1] == @which RebuggerTesting.kwfuncmiddle(1,1)
+            m = @which RebuggerTesting.kwfuncmiddle(1,1)
+            @test usrtrace[1] == m || usrtrace[2] == m
+
+            # A case that tests inlining and several other aspects of argument capture
+            ex = :([1, 2, 3] .* [1, 2])
+            # Capture the actual stack trace, trimming it to avoid anything involving the `eval` itself
+            trace = try
+                Core.eval(Main, ex)
+            catch
+                stacktrace(catch_backtrace())
+            end
+            i = 1
+            while i <= length(trace)
+                t = trace[i]
+                if t.func == Symbol("top-level scope")
+                    deleteat!(trace, i:length(trace))
+                end
+                i += 1
+            end
+            # Get the capture from Rebugger
+            uuids = mktemp() do path, iostacktrace
+                redirect_stderr(iostacktrace) do
+                    Rebugger.capture_stacktrace(Main, ex)
+                end
+            end
+            @test length(uuids) == length(trace)
+            for (uuid, t) in zip(reverse(uuids), trace)
+                @test Rebugger.stored[uuid].method.name == t.func
+            end
         end
     end
 
@@ -396,9 +424,23 @@ Base.show(io::IO, ::ErrorsOnShow) = throw(ArgumentError("no show"))
                         @test countlines(io) >= 4
                     end
                     histdel += length(idx)
-                    @test length(idx) == 4
+                    @test length(idx) >= 5
                     @test hist.history[idx[1]] == cmd
                     @test occursin("error", hist.history[idx[end]])
+                end
+
+                @testset "Empty stacktraces" begin
+                    cmd = "ccall(:jl_throw, Nothing, (Any,), ArgumentError(\"oops\"))"
+                    mktemp() do path, io
+                        redirect_stderr(io) do
+                            LineEdit.replace_line(mistate, cmd)
+                            @test Rebugger.capture_stacktrace(mistate) === nothing
+                            LineEdit.transition(mistate, julia_prompt)
+                        end
+                        flush(io)
+                        str = read(path, String)
+                        @test occursin("failed to capture", str)
+                    end
                 end
 
                 LineEdit.edit_clear(mistate)

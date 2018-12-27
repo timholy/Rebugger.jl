@@ -88,27 +88,55 @@ and so on.
 function pregenerated_stacktrace(trace; topname = :capture_stacktrace)
     usrtrace, defs = Method[], RelocatableExpr[]
     methodsused = Set{Method}()
+
+    function load_file(file, mod=Base)
+        ret = Revise.find_file(file, mod)
+        ret == nothing && return nothing
+        file, recipemod = ret
+        if !haskey(Revise.fileinfos, file)
+            try
+                @info "tracking $recipemod"
+                Revise.track(recipemod)
+            catch err
+                err isa Revise.GitRepoException && return nothing
+                rethrow(err)
+            end
+        end
+        return file
+    end
+
+    # When the method can't be found directly in the tables,
+    # look it up by fie and line number
+    function add_by_file_line(defmap, sf)
+        for (def, info) in defmap
+            info == nothing && continue
+            sigts, offset = info
+            r = linerange(def, offset)
+            r == nothing && continue
+            if sf.line ∈ r
+                mths = Base._methods_by_ftype(last(sigts), -1, typemax(UInt))
+                m = mths[end][3]    # the last method is the least specific that matches the signature (which would be more specific if it were used)
+                if m ∉ methodsused
+                    push!(defs, def)
+                    push!(usrtrace, m)
+                    push!(methodsused, m)
+                    return true
+                end
+            end
+        end
+        return false
+    end
+
     for (i, sf) in enumerate(trace)
         sf.func == topname && break  # truncate at the chosen spot
         sf.func ∈ notrace && continue
         mi = sf.linfo
+        file = String(sf.file)
         if mi isa Core.MethodInstance
             method = mi.def
             # Set up tracking, if necessary
-            file = String(sf.file)
             if !haskey(Revise.fileinfos, file)
-                ret = Revise.find_file(file, method.module)
-                ret == nothing && continue
-                file, recipemod = ret
-                if !haskey(Revise.fileinfos, file)
-                    try
-                        @info "tracking $recipemod"
-                        Revise.track(recipemod)
-                    catch err
-                        err isa Revise.GitRepoException && continue
-                        rethrow(err)
-                    end
-                end
+                file = load_file(file, method.module)
             end
             haskey(Revise.fileinfos, file) || continue
             fi = Revise.fileinfos[file]
@@ -118,30 +146,24 @@ function pregenerated_stacktrace(trace; topname = :capture_stacktrace)
                 # This is a generated method, perhaps it's a keyword function handler
                 # Look for it by line number
                 defmap = fi.fm[method.module].defmap
-                for (def, info) in defmap
-                    info == nothing && continue
-                    sigts, offset = info
-                    r = linerange(def, offset)
-                    r == nothing && continue
-                    if sf.line ∈ r
-                        mths = Base._methods_by_ftype(last(sigts), -1, typemax(UInt))
-                        if length(mths) == 1
-                            m = mths[1][3]
-                            if m ∉ methodsused
-                                push!(defs, def)
-                                push!(usrtrace, m)
-                                push!(methodsused, m)
-                                break
-                            end
-                        end
-                    end
-                end
+                add_by_file_line(defmap, sf)
             else
                 method ∈ methodsused && continue
                 def = Revise.get_def(method; modified_files=String[])
                 def isa ExLike || continue
                 push!(defs, def)
                 push!(usrtrace, method)
+            end
+        else
+            # This method was inlined and hence linfo was not available
+            if !haskey(Revise.fileinfos, file)
+                file = load_file(file)
+            end
+            haskey(Revise.fileinfos, file) || continue
+            fi = Revise.fileinfos[file]
+            Revise.maybe_parse_from_cache!(fi, file)
+            for (mod, fmm) in fi.fm
+                add_by_file_line(fmm.defmap, sf) && break
             end
         end
     end
@@ -169,6 +191,7 @@ function capture_stacktrace(mod::Module, command::Expr)
     end
     errored || error("$command did not throw an error")
     usrtrace, defs = pregenerated_stacktrace(trace)
+    isempty(usrtrace) && error("failed to capture any elements of the stacktrace")
     println(stderr, "Captured elements of stacktrace:")
     show(stderr, MIME("text/plain"), usrtrace)
     length(unique(usrtrace)) == length(usrtrace) || @error "the same method appeared twice, not supported. Try stepping into the command."
