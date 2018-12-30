@@ -89,31 +89,15 @@ function pregenerated_stacktrace(trace; topname = :capture_stacktrace)
     usrtrace, defs = Method[], RelocatableExpr[]
     methodsused = Set{Method}()
 
-    function load_file(file, mod=Base)
-        ret = Revise.find_file(file, mod)
-        ret == nothing && return nothing
-        file, recipemod = ret
-        if !haskey(Revise.fileinfos, file)
-            try
-                @info "tracking $recipemod"
-                Revise.track(recipemod)
-            catch err
-                err isa Revise.GitRepoException && return nothing
-                rethrow(err)
-            end
-        end
-        return file
-    end
-
     # When the method can't be found directly in the tables,
     # look it up by fie and line number
-    function add_by_file_line(defmap, sf)
+    function add_by_file_line(defmap, line)
         for (def, info) in defmap
             info == nothing && continue
             sigts, offset = info
             r = linerange(def, offset)
             r == nothing && continue
-            if sf.line ∈ r
+            if line ∈ r
                 mths = Base._methods_by_ftype(last(sigts), -1, typemax(UInt))
                 m = mths[end][3]    # the last method is the least specific that matches the signature (which would be more specific if it were used)
                 if m ∉ methodsused
@@ -126,6 +110,16 @@ function pregenerated_stacktrace(trace; topname = :capture_stacktrace)
         end
         return false
     end
+    function add_by_file_line(pkgdata, file, line)
+        fi = get(pkgdata.fileinfos, file, nothing)
+        if fi !== nothing
+            Revise.maybe_parse_from_cache!(pkgdata, file)
+            for (mod, fmm) in fi.fm
+                add_by_file_line(fmm.defmap, line) && return true
+            end
+        end
+        return false
+    end
 
     for (i, sf) in enumerate(trace)
         sf.func == topname && break  # truncate at the chosen spot
@@ -134,36 +128,47 @@ function pregenerated_stacktrace(trace; topname = :capture_stacktrace)
         file = String(sf.file)
         if mi isa Core.MethodInstance
             method = mi.def
-            # Set up tracking, if necessary
-            if !haskey(Revise.fileinfos, file)
-                file = load_file(file, method.module)
+            def = nothing
+            if String(method.name)[1] != '#'   # if not a keyword/default arg method
+                def = Revise.get_def(method)
             end
-            haskey(Revise.fileinfos, file) || continue
-            fi = Revise.fileinfos[file]
-            Revise.maybe_parse_from_cache!(fi, file)
-            funcname = String(sf.func)
-            if startswith(funcname, '#')
-                # This is a generated method, perhaps it's a keyword function handler
+            if def === nothing
+                # This may be a generated method, perhaps it's a keyword function handler
                 # Look for it by line number
-                defmap = fi.fm[method.module].defmap
-                add_by_file_line(defmap, sf)
+                id = Revise.get_tracked_id(method.module)
+                id === nothing && continue
+                pkgdata = Revise.pkgdatas[id]
+                rpath = relpath(file, pkgdata)
+                fi = get(pkgdata.fileinfos, rpath, nothing)
+                if fi !== nothing
+                    add_by_file_line(fi.fm[method.module].defmap, sf)
+                end
             else
                 method ∈ methodsused && continue
-                def = Revise.get_def(method; modified_files=String[])
                 def isa ExLike || continue
                 push!(defs, def)
                 push!(usrtrace, method)
             end
         else
             # This method was inlined and hence linfo was not available
-            if !haskey(Revise.fileinfos, file)
-                file = load_file(file)
+            # Try to find it
+            if startswith(file, "./")
+                # This is a file in Base or Core
+                file = relpath(file, "./")
+                id = Revise.get_tracked_id(Base)
+                pkgdata = Revise.pkgdatas[id]
+                if haskey(pkgdata.fileinfos, file)
+                    add_by_file_line(pkgdata, file, sf.line) && continue
+                elseif startswith(file, "compiler")
+                    id = Revise.get_tracked_id(Core.Compiler)
+                    pkgdata = Revise.pkgdatas[id]
+                    add_by_file_line(pkgdata, relpath(file, pkgdata), sf.line) && continue
+                end
             end
-            haskey(Revise.fileinfos, file) || continue
-            fi = Revise.fileinfos[file]
-            Revise.maybe_parse_from_cache!(fi, file)
-            for (mod, fmm) in fi.fm
-                add_by_file_line(fmm.defmap, sf) && break
+            # Try all loaded packages
+            for (id, pkgdata) in Revise.pkgdatas
+                rpath = relpath(file, pkgdata)
+                add_by_file_line(pkgdata, rpath, sf.line) && break
             end
         end
     end
@@ -449,7 +454,7 @@ function method_capture_from_callee(method; kwargs...)
     # Could use a default arg above but this generates a more understandable error message
     local def
     try
-        def = get_def(method; modified_files=String[])
+        def = get_def(method; modified_files=typeof(Revise.revision_queue)())
     catch err
         throw(DefMissing(method, err))
     end
