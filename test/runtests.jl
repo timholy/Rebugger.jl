@@ -1,6 +1,6 @@
 using Rebugger
 using Rebugger: StopException
-using Test, UUIDs, InteractiveUtils, REPL, HeaderREPLs
+using Test, UUIDs, InteractiveUtils, REPL, Pkg, HeaderREPLs
 using REPL.LineEdit
 using Revise, Colors
 
@@ -427,6 +427,14 @@ Base.show(io::IO, ::ErrorsOnShow) = throw(ArgumentError("no show"))
                     @test length(idx) >= 5
                     @test hist.history[idx[1]] == cmd
                     @test occursin("error", hist.history[idx[end]])
+                end
+
+                @testset "Pkg demo" begin
+                    updated = Pkg.UPDATED_REGISTRY_THIS_SESSION[]
+                    Pkg.UPDATED_REGISTRY_THIS_SESSION[] = true
+                    uuids = Rebugger.capture_stacktrace(Pkg, :(add("NoPkg")))
+                    @test length(uuids) >= 2
+                    Pkg.UPDATED_REGISTRY_THIS_SESSION[] = updated
                 end
 
                 @testset "Empty stacktraces" begin

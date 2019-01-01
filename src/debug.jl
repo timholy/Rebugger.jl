@@ -138,7 +138,9 @@ function pregenerated_stacktrace(trace; topname = :capture_stacktrace)
                 id = Revise.get_tracked_id(method.module)
                 id === nothing && continue
                 pkgdata = Revise.pkgdatas[id]
-                rpath = relpath(file, pkgdata)
+                cfile = get(Revise.src_file_key, file, file)
+                rpath = relpath(cfile, pkgdata)
+                Revise.maybe_parse_from_cache!(pkgdata, rpath)
                 fi = get(pkgdata.fileinfos, rpath, nothing)
                 if fi !== nothing
                     add_by_file_line(fi.fm[method.module].defmap, sf)
