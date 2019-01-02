@@ -13,14 +13,17 @@ notifications:
 git:
   depth: 99999999
 
-# TODO: remove this once HeaderREPLs is registered
-before_script:
-  - julia -e 'using Pkg;
-              Pkg.clone("https://github.com/timholy/HeaderREPLs.jl")'
-
-after_script:  # TODO: change to after_success once https://github.com/JuliaLang/julia/issues/28306 is fixed
+after_success:
   # push coverage results to Codecov
   - julia -e 'using Pkg, Rebugger; cd(joinpath(dirname(pathof(Rebugger)), "..")); Pkg.add("Coverage"); using Coverage; Codecov.submit(Codecov.process_folder())'
-  # Update the documentation
-  - julia -e 'using Pkg; ps=Pkg.PackageSpec(name="Documenter", version="0.19"); Pkg.add(ps); Pkg.pin(ps)'
-  - julia -e 'using Rebugger; ENV["DOCUMENTER_DEBUG"] = "true"; include(joinpath(dirname(pathof(Rebugger)), "..", "docs", "make.jl"))'
+
+jobs:
+  include:
+    - stage: "Documentation"
+      julia: 1.0
+      os: linux
+      script:
+        - julia --project=docs/ -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd()));
+                                               Pkg.instantiate()'
+        - julia --project=docs/ docs/make.jl
+after_success: skip

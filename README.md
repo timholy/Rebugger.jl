@@ -19,7 +19,7 @@ The name "Rebugger" has 3 meanings:
 **See the documentation**:
 
 [![](https://img.shields.io/badge/docs-stable-blue.svg)](https://timholy.github.io/Rebugger.jl/stable)
-[![](https://img.shields.io/badge/docs-latest-blue.svg)](https://timholy.github.io/Rebugger.jl/latest)
+[![](https://img.shields.io/badge/docs-latest-blue.svg)](https://timholy.github.io/Rebugger.jl/dev)
 
 Note that Rebugger may benefit from custom configuration, as described in the documentation.
 
