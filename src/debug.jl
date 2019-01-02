@@ -131,16 +131,27 @@ function pregenerated_stacktrace(trace; topname = :capture_stacktrace)
             method = mi.def
             def = nothing
             if String(method.name)[1] != '#'   # if not a keyword/default arg method
-                def = Revise.get_def(method)
+                try
+                    def = Revise.get_def(method)
+                catch
+                    continue
+                end
             end
             if def === nothing
                 # This may be a generated method, perhaps it's a keyword function handler
                 # Look for it by line number
-                id = Revise.get_tracked_id(method.module)
+                local id
+                try
+                    id = Revise.get_tracked_id(method.module)
+                catch
+                    # Methods from Core.Compiler cause errors on Julia binaries
+                    continue
+                end
                 id === nothing && continue
                 pkgdata = Revise.pkgdatas[id]
                 cfile = get(Revise.src_file_key, file, file)
                 rpath = relpath(cfile, pkgdata)
+                haskey(pkgdata.fileinfos, rpath) || continue
                 Revise.maybe_parse_from_cache!(pkgdata, rpath)
                 fi = get(pkgdata.fileinfos, rpath, nothing)
                 if fi !== nothing
@@ -163,7 +174,12 @@ function pregenerated_stacktrace(trace; topname = :capture_stacktrace)
                 if haskey(pkgdata.fileinfos, file)
                     add_by_file_line(pkgdata, file, sf.line) && continue
                 elseif startswith(file, "compiler")
-                    id = Revise.get_tracked_id(Core.Compiler)
+                    try
+                        id = Revise.get_tracked_id(Core.Compiler)
+                    catch
+                        # On Julia binaries Core.Compiler is not available
+                        continue
+                    end
                     pkgdata = Revise.pkgdatas[id]
                     add_by_file_line(pkgdata, relpath(file, pkgdata), sf.line) && continue
                 end

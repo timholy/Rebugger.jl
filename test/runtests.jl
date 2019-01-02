@@ -315,7 +315,8 @@ Base.show(io::IO, ::ErrorsOnShow) = throw(ArgumentError("no show"))
 
             # A case that tests inlining and several other aspects of argument capture
             ex = :([1, 2, 3] .* [1, 2])
-            # Capture the actual stack trace, trimming it to avoid anything involving the `eval` itself
+            # Capture the actual stack trace, trimming it to avoid
+            # anything involving the `eval` itself
             trace = try
                 Core.eval(Main, ex)
             catch
@@ -339,6 +340,15 @@ Base.show(io::IO, ::ErrorsOnShow) = throw(ArgumentError("no show"))
             for (uuid, t) in zip(reverse(uuids), trace)
                 @test Rebugger.stored[uuid].method.name == t.func
             end
+
+            # Try capturing a method from Core. On binaries this would throw
+            # if we didn't catch it.
+            # Because the first entry is "top-level scope", and that terminates
+            # processing in Rebugger.pregenerated_stacktrace, we have to intervene a bit.
+            mod, ex = Main, :(Core.throw(ArgumentError("oops")))
+            trace = try Core.eval(mod, command) catch err stacktrace(catch_backtrace()) end
+            usrtrace, defs = Rebugger.pregenerated_stacktrace(trace[2:3])
+            @test usrtrace isa Vector
         end
     end
 
