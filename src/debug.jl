@@ -35,6 +35,7 @@ struct EvalException   <: Exception
     exception
 end
 
+const base_prefix = '.' * Base.Filesystem.path_separator
 
 """
     Rebugger.clear()
@@ -154,9 +155,9 @@ function pregenerated_stacktrace(trace; topname = :capture_stacktrace)
         else
             # This method was inlined and hence linfo was not available
             # Try to find it
-            if startswith(file, "./")
+            if startswith(file, base_prefix)
                 # This is a file in Base or Core
-                file = relpath(file, "./")
+                file = relpath(file, base_prefix)
                 id = Revise.get_tracked_id(Base)
                 pkgdata = Revise.pkgdatas[id]
                 if haskey(pkgdata.fileinfos, file)
