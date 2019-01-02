@@ -1,7 +1,7 @@
 var documenterSearchIndex = {"docs": [
 
 {
-    "location": "index.html#",
+    "location": "#",
     "page": "Home",
     "title": "Home",
     "category": "page",
@@ -9,15 +9,15 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "index.html#Introduction-to-Rebugger-1",
+    "location": "#Introduction-to-Rebugger-1",
     "page": "Home",
     "title": "Introduction to Rebugger",
     "category": "section",
-    "text": "Rebugger is an expression-level debugger for Julia. It has no ability to interact with or manipulate call stacks (see ASTInterpreter2), but it can trace execution via the manipulation of Julia expressions.The name \"Rebugger\" has 3 meanings:it is a REPL-based debugger (more on that below)\nit is the Revise-based debugger\nit supports repeated-execution \"surface\" debuggingRebugger is an unusual debugger with a novel work-flow paradigm. With most debuggers, you enter some special mode that lets the user \"dive into the code,\" but what you are allowed to do while in this special mode may be limited. In contrast, Rebugger brings the code along with its input arguments to the user, presenting them both for inspection, analysis, and editing in the (mostly) normal Julia interactive command line. As a consequence, you can:test different modifications to the code or arguments without being forced to exit debug mode and save your file\nrun the same chosen block of code repeatedly (perhaps with different modifications each time) without having to repeat any of the \"setup\" work that might have been necessary to get to some deeply nested method in the original call stack. In other words, Rebugger brings \"internal\" methods to the surface.\nrun any desired command that helps you understand the nature of a bug. For example, if you\'ve already loaded MyFavoritePlottingPackage in your session, then when debugging you can (transiently) add Main.MyFavoritePlottingPackage.plot(x, y) as a line of the method-body you are currently analyzing, and you should see a plot of the requested variables.Rebugger exploits the Julia REPL\'s history capabilities to simulate the stacktrace-navigation features of graphical debuggers. Thus Rebugger offers a command-line experience that is more closely aligned with graphical debuggers than the traditional s, n, up, c commands of a console debugger."
+    "text": "Rebugger is an expression-level debugger for Julia. It has no ability to interact with or manipulate call stacks (see Gallium), but it can trace execution via the manipulation of Julia expressions.The name \"Rebugger\" has 3 meanings:it is a REPL-based debugger (more on that below)\nit is the Revise-based debugger\nit supports repeated-execution \"surface\" debuggingRebugger is an unusual debugger with a novel work-flow paradigm. With most debuggers, you enter some special mode that lets the user \"dive into the code,\" but what you are allowed to do while in this special mode may be limited. In contrast, Rebugger brings the code along with its input arguments to the user, presenting them both for inspection, analysis, and editing in the (mostly) normal Julia interactive command line. As a consequence, you can:test different modifications to the code or arguments without being forced to exit debug mode and save your file\nrun the same chosen block of code repeatedly (perhaps with different modifications each time) without having to repeat any of the \"setup\" work that might have been necessary to get to some deeply nested method in the original call stack. In other words, Rebugger brings \"internal\" methods to the surface.\nrun any desired command that helps you understand the nature of a bug. For example, if you\'ve already loaded MyFavoritePlottingPackage in your session, then when debugging you can (transiently) add Main.MyFavoritePlottingPackage.plot(x, y) as a line of the method-body you are currently analyzing, and you should see a plot of the requested variables.Rebugger exploits the Julia REPL\'s history capabilities to simulate the stacktrace-navigation features of graphical debuggers. Thus Rebugger offers a command-line experience that is more closely aligned with graphical debuggers than the traditional s, n, up, c commands of a console debugger."
 },
 
 {
-    "location": "index.html#Installation-1",
+    "location": "#Installation-1",
     "page": "Home",
     "title": "Installation",
     "category": "section",
@@ -25,7 +25,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "index.html#Keyboard-shortcuts-1",
+    "location": "#Keyboard-shortcuts-1",
     "page": "Home",
     "title": "Keyboard shortcuts",
     "category": "section",
@@ -33,7 +33,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "index.html#macOS-1",
+    "location": "#macOS-1",
     "page": "Home",
     "title": "macOS",
     "category": "section",
@@ -41,7 +41,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "index.html#Ubuntu-1",
+    "location": "#Ubuntu-1",
     "page": "Home",
     "title": "Ubuntu",
     "category": "section",
@@ -49,7 +49,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "usage.html#",
+    "location": "usage/#",
     "page": "Usage",
     "title": "Usage",
     "category": "page",
@@ -57,7 +57,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "usage.html#Usage-1",
+    "location": "usage/#Usage-1",
     "page": "Usage",
     "title": "Usage",
     "category": "section",
@@ -65,23 +65,23 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "usage.html#Stepping-in-1",
+    "location": "usage/#Stepping-in-1",
     "page": "Usage",
     "title": "Stepping in",
     "category": "section",
-    "text": "Select the expression you want to step into by positioning \"point\" (your cursor) at the desired location in the command line:<img src=\"images/stepin1.png\" width=\"200px\"/>It\'s essential that point is at the very first character of the expression, in this case on the s in show. Now if you hit Meta-e, you should see something like this:<img src=\"images/stepin2.png\" width=\"822px\"/>(If not, check Keyboard shortcuts and Customize keybindings.) The cyan \"Info\" line is an indication that the method you\'re stepping into is a function in Julia\'s Base module; this is shown by Revise (not Rebugger), and only happens once per session.The remaining lines correspond to the Rebugger header and user input. The magenta line tells you which method you are stepping into. Indented blue line(s) show the value(s) of any input arguments or type parameters.If you\'re following along, move your cursor to the next show call as illustrated above. Hit Meta-e again. You should see a new show method, this time with two input arguments.Now let\'s demonstrate another important display item: position your cursor at the beginning of the _show_empty call and hit Meta-e. The display should now look like this:<img src=\"images/stepin3.png\" width=\"859px\"/>This time, note the yellow/orange line: this is a warning message, and you should pay attention to these. (You might also see red lines, which are generally more serious \"errors.\") In this case execution never reached _show_empty, because it enters show_vector instead; if you moved your cursor there, you could trace execution more completely.Having illustrated the importance of \"point\" and the various colors used for messages from Rebugger, to ensure readability the remaining examples will be rendered as text."
+    "text": "Select the expression you want to step into by positioning \"point\" (your cursor) at the desired location in the command line:<img src=\"images/stepin1.png\" width=\"160px\"/>It\'s essential that point is at the very first character of the expression, in this case on the s in show.note: Note\nDon\'t confuse the REPL\'s cursor with your mouse pointer. Your mouse is essentially irrelevant on the REPL; use arrow keys or the other navigation features of Julia\'s REPL.Now if you hit Meta-e, you should see something like this:<img src=\"images/stepin2.png\" width=\"660px\"/>(If not, check Keyboard shortcuts and Customize keybindings.) The cyan \"Info\" line is an indication that the method you\'re stepping into is a function in Julia\'s Base module; this is shown by Revise (not Rebugger), and only happens once per session.The remaining lines correspond to the Rebugger header and user input. The magenta line tells you which method you are stepping into. Indented blue line(s) show the value(s) of any input arguments or type parameters.If you\'re following along, move your cursor to the next show call as illustrated above. Hit Meta-e again. You should see a new show method, this time with two input arguments.Now let\'s demonstrate another important display item: position point at the beginning of the _show_empty call and hit Meta-e. The display should now look like this:<img src=\"images/stepin3.png\" width=\"690px\"/>This time, note the yellow/orange line: this is a warning message, and you should pay attention to these. (You might also see red lines, which are generally more serious \"errors.\") In this case execution never reached _show_empty, because it enters show_vector instead; if you moved your cursor there, you could trace execution more completely.You can edit these expressions to insert code to display variables or test changes to the code. As an experiment, try stepping into the show_vector call from the example above and adding @show limited to display a local variable\'s value:<img src=\"images/stepin4.png\" width=\"800px\"/>note: Note\nWhen editing expressions, you can insert a blank line with Meta-Enter (i.e., Esc-Enter, Alt-Enter, or Option-Enter). See the many advanced features of Julia\'s REPL that allow you to efficiently edit these let-blocks.Having illustrated the importance of \"point\" and the various colors used for messages from Rebugger, to ensure readability the remaining examples will be rendered as text."
 },
 
 {
-    "location": "usage.html#Capturing-stacktraces-1",
+    "location": "usage/#Capturing-stacktraces-1",
     "page": "Usage",
     "title": "Capturing stacktraces",
     "category": "section",
-    "text": "For a quick demo, we\'ll use the Colors package (add it if you don\'t have it) and deliberately choose a method that will end in an error: we\'ll try to parse a string as a Hue, Saturation, Lightness (HSL) color, except we\'ll \"forget\" that hue cannot be expressed as a percentage and deliberately trigger an error:julia> using Colors\n\njulia> colorant\"hsl(80%, 20%, 15%)\"\nERROR: LoadError: hue cannot end in %\nStacktrace:\n [1] error(::String) at ./error.jl:33\n [2] parse_hsl_hue(::SubString{String}) at /home/tim/.julia/dev/Colors/src/parse.jl:26\n [3] _parse_colorant(::String) at /home/tim/.julia/dev/Colors/src/parse.jl:75\n [4] _parse_colorant at /home/tim/.julia/dev/Colors/src/parse.jl:112 [inlined]\n [5] parse(::Type{Colorant}, ::String) at /home/tim/.julia/dev/Colors/src/parse.jl:140\n [6] @colorant_str(::LineNumberNode, ::Module, ::Any) at /home/tim/.julia/dev/Colors/src/parse.jl:147\nin expression starting at REPL[3]:1To capture the stacktrace, type the last line again or hit the up arrow, but instead of pressing enter type Meta-s. After a short delay, you should see something like this:julia> colorant\"hsl(80%, 20%, 15%)\"\n┌ Warning: Tuple{getfield(Colors, Symbol(\"#@colorant_str\")),LineNumberNode,Module,Any} was not found, perhaps it was generated by code\n└ @ Revise ~/.julia/dev/Revise/src/Revise.jl:614\nCaptured elements of stacktrace:\n[1] parse_hsl_hue(num::AbstractString) in Colors at /home/tim/.julia/dev/Colors/src/parse.jl:25\n[2] _parse_colorant(desc::AbstractString) in Colors at /home/tim/.julia/dev/Colors/src/parse.jl:51\n[3] parse(::Type{C}, desc::AbstractString) where C<:Colorant in Colors at /home/tim/.julia/dev/Colors/src/parse.jl:140\nparse_hsl_hue(num::AbstractString) in Colors at /home/tim/.julia/dev/Colors/src/parse.jl:25\n  num = 80%\nrebug> @eval Colors let (num,) = Main.Rebugger.getstored(\"c592f0a4-a226-11e8-1002-fd2731558606\")\n       begin\n           if num[end] == \'%\'\n               error(\"hue cannot end in %\")\n           else\n               return parse(Int, num, base=10)\n           end\n       end\n       end(Again, if this doesn\'t happen check Keyboard shortcuts and Customize keybindings.) Now you can navigate with your up and down arrows to browse the captured stacktrace. You can pick any of these expressions to execute (hit Enter) or edit before execution. For example you could add @show commands to examine intermediate variables or test out different ways to fix a bug. You can use the REPL history to test the results of many different changes to the same \"method\"; the \"method\" will be run with the same inputs each time."
+    "text": "For a quick demo, we\'ll use the Colors package (add it if you don\'t have it) and deliberately choose a method that will end in an error: we\'ll try to parse a string as a Hue, Saturation, Lightness (HSL) color, except we\'ll \"forget\" that hue cannot be expressed as a percentage and deliberately trigger an error:julia> using Colors\n\njulia> colorant\"hsl(80%, 20%, 15%)\"\nERROR: LoadError: hue cannot end in %\nStacktrace:\n [1] error(::String) at ./error.jl:33\n [2] parse_hsl_hue(::SubString{String}) at /home/tim/.julia/dev/Colors/src/parse.jl:26\n [3] _parse_colorant(::String) at /home/tim/.julia/dev/Colors/src/parse.jl:75\n [4] _parse_colorant at /home/tim/.julia/dev/Colors/src/parse.jl:112 [inlined]\n [5] parse(::Type{Colorant}, ::String) at /home/tim/.julia/dev/Colors/src/parse.jl:140\n [6] @colorant_str(::LineNumberNode, ::Module, ::Any) at /home/tim/.julia/dev/Colors/src/parse.jl:147\nin expression starting at REPL[3]:1To capture the stacktrace, type the last line again or hit the up arrow, but instead of pressing Enter, type Meta-s. After a short delay, you should see something like this:julia> colorant\"hsl(80%, 20%, 15%)\"\n┌ Warning: Tuple{getfield(Colors, Symbol(\"#@colorant_str\")),LineNumberNode,Module,Any} was not found, perhaps it was generated by code\n└ @ Revise ~/.julia/dev/Revise/src/Revise.jl:659\nCaptured elements of stacktrace:\n[1] parse_hsl_hue(num::AbstractString) in Colors at /home/tim/.julia/packages/Colors/4hvzi/src/parse.jl:25\n[2] _parse_colorant(desc::AbstractString) in Colors at /home/tim/.julia/packages/Colors/4hvzi/src/parse.jl:51\n[3] _parse_colorant(::Type{C}, ::Type{SUP}, desc::AbstractString) where {C<:Colorant, SUP} in Colors at /home/tim/.julia/packages/Colors/4hvzi/src/parse.jl:112\n[4] parse(::Type{C}, desc::AbstractString) where C<:Colorant in Colors at /home/tim/.julia/packages/Colors/4hvzi/src/parse.jl:140\nparse_hsl_hue(num::AbstractString) in Colors at /home/tim/.julia/packages/Colors/4hvzi/src/parse.jl:25\n  num = 80%\nrebug> @eval Colors let (num,) = Main.Rebugger.getstored(\"57dbc76a-0def-11e9-1dbf-ef97d29d2e25\")\n       begin\n           if num[end] == \'%\'\n               error(\"hue cannot end in %\")\n           else\n               return parse(Int, num, base=10)\n           end\n       end\n       end(Again, if this doesn\'t happen check Keyboard shortcuts and Customize keybindings.) You are in the method corresponding to [1] in the stacktrace. Now you can navigate with your up and down arrows to browse the captured stacktrace. For example, if you hit the up arrow twice, you will be in the method corresponding to [3]:julia> colorant\"hsl(80%, 20%, 15%)\"\n┌ Warning: Tuple{getfield(Colors, Symbol(\"#@colorant_str\")),LineNumberNode,Module,Any} was not found, perhaps it was generated by code\n└ @ Revise ~/.julia/dev/Revise/src/Revise.jl:659\nCaptured elements of stacktrace:\n[1] parse_hsl_hue(num::AbstractString) in Colors at /home/tim/.julia/packages/Colors/4hvzi/src/parse.jl:25\n[2] _parse_colorant(desc::AbstractString) in Colors at /home/tim/.julia/packages/Colors/4hvzi/src/parse.jl:51\n[3] _parse_colorant(::Type{C}, ::Type{SUP}, desc::AbstractString) where {C<:Colorant, SUP} in Colors at /home/tim/.julia/packages/Colors/4hvzi/src/parse.jl:112\n[4] parse(::Type{C}, desc::AbstractString) where C<:Colorant in Colors at /home/tim/.julia/packages/Colors/4hvzi/src/parse.jl:140\n_parse_colorant(::Type{C}, ::Type{SUP}, desc::AbstractString) where {C<:Colorant, SUP} in Colors at /home/tim/.julia/packages/Colors/4hvzi/src/parse.jl:112\n  C = Colorant\n  SUP = Any\n  desc = hsl(80%, 20%, 15%)\nrebug> @eval Colors let (C, SUP, desc) = Main.Rebugger.getstored(\"57d9ebc0-0def-11e9-2ab0-e5d1e4c6e82d\")\n       begin\n           _parse_colorant(desc)\n       end\n       endYou can hit the down arrow and go back to earlier entries in the trace. Alternatively, you can pick any of these expressions to execute (hit Enter) or edit before execution. You can use the REPL history to test the results of many different changes to the same \"method\"; the \"method\" will be run with the same inputs each time.note: Note\nWhen point is at the end of the input, the up and down arrows step through the history. But if you move point into the method body (e.g., by using left-arrow), the up and down arrows move within the method body. If you\'ve entered edit mode, you can go back to history mode using PgUp and PgDn."
 },
 
 {
-    "location": "usage.html#Important-notes-1",
+    "location": "usage/#Important-notes-1",
     "page": "Usage",
     "title": "Important notes",
     "category": "section",
@@ -89,15 +89,15 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "usage.html#\"Missing\"-methods-from-stacktraces-1",
+    "location": "usage/#\"Missing\"-methods-from-stacktraces-1",
     "page": "Usage",
     "title": "\"Missing\" methods from stacktraces",
     "category": "section",
-    "text": "In the example above, you may have noticed the warning about the @colorant_str macro being omitted from the \"captured\" (interactive) expressions comprising the stacktrace. Macros are not traced. Also notice that the inlined method does not appear in the captured stacktrace. However, you can enter an inlined method using \"step in,\" starting from the method above it in the stacktrace.When many methods use keyword arguments, the apparent difference between the \"real\" stacktrace and the \"captured\" stacktrace can be quite dramatic:julia> using Pkg\n\njulia> Pkg.add(\"NoPkg\")\n  Updating registry at `~/.julia/registries/General`\n  Updating git-repo `https://github.com/JuliaRegistries/General.git`\nERROR: The following package names could not be resolved:\n * NoPkg (not found in project, manifest or registry)\nPlease specify by known `name=uuid`.\nStacktrace:\n [1] pkgerror(::String) at /home/tim/src/julia-1.0/usr/share/julia/stdlib/v1.0/Pkg/src/Types.jl:120\n [2] #ensure_resolved#42(::Bool, ::Function, ::Pkg.Types.EnvCache, ::Array{Pkg.Types.PackageSpec,1}) at /home/tim/src/julia-1.0/usr/share/julia/stdlib/v1.0/Pkg/src/Types.jl:890\n [3] #ensure_resolved at ./none:0 [inlined]\n [4] #add_or_develop#13(::Symbol, ::Bool, ::Base.Iterators.Pairs{Union{},Union{},Tuple{},NamedTuple{(),Tuple{}}}, ::Function, ::Pkg.Types.Context, ::Array{Pkg.Types.PackageSpec,1}) at /home/tim/src/julia-1.0/usr/share/julia/stdlib/v1.0/Pkg/src/API.jl:59\n [5] #add_or_develop at ./none:0 [inlined]\n [6] #add_or_develop#12 at /home/tim/src/julia-1.0/usr/share/julia/stdlib/v1.0/Pkg/src/API.jl:29 [inlined]\n [7] #add_or_develop at ./none:0 [inlined]\n [8] #add_or_develop#11(::Base.Iterators.Pairs{Symbol,Symbol,Tuple{Symbol},NamedTuple{(:mode,),Tuple{Symbol}}}, ::Function, ::Array{String,1}) at /home/tim/src/julia-1.0/usr/share/julia/stdlib/v1.0/Pkg/src/API.jl:28\n [9] #add_or_develop at ./none:0 [inlined]\n [10] #add_or_develop#10 at /home/tim/src/julia-1.0/usr/share/julia/stdlib/v1.0/Pkg/src/API.jl:27 [inlined]\n [11] #add_or_develop at ./none:0 [inlined]\n [12] #add#18 at /home/tim/src/julia-1.0/usr/share/julia/stdlib/v1.0/Pkg/src/API.jl:69 [inlined]\n [13] add(::String) at /home/tim/src/julia-1.0/usr/share/julia/stdlib/v1.0/Pkg/src/API.jl:69\n [14] top-level scope at none:0\n\njulia> Pkg.add(\"NoPkg\")  # hit Meta-s here\nCaptured elements of stacktrace:\n[1] pkgerror(msg::String...) in Pkg.Types at /home/tim/src/julia-1.0/usr/share/julia/stdlib/v1.0/Pkg/src/Types.jl:120\n[2] ensure_resolved(env::Pkg.Types.EnvCache, pkgs::AbstractArray{Pkg.Types.PackageSpec,1}) in Pkg.Types at /home/tim/src/julia-1.0/usr/share/julia/stdlib/v1.0/Pkg/src/Types.jl:860\n[3] add_or_develop(ctx::Pkg.Types.Context, pkgs::Array{Pkg.Types.PackageSpec,1}) in Pkg.API at /home/tim/src/julia-1.0/usr/share/julia/stdlib/v1.0/Pkg/src/API.jl:32\n[4] add_or_develop(pkgs::Array{String,1}) in Pkg.API at /home/tim/src/julia-1.0/usr/share/julia/stdlib/v1.0/Pkg/src/API.jl:28\n[5] add(args...) in Pkg.API at /home/tim/src/julia-1.0/usr/share/julia/stdlib/v1.0/Pkg/src/API.jl:69\npkgerror(msg::String...) in Pkg.Types at /home/tim/src/julia-1.0/usr/share/julia/stdlib/v1.0/Pkg/src/Types.jl:120\n  msg = (\"The following package names could not be resolved:\\n * NoPkg (not found in project, manifest or registry)\\nPlease specify by known `name=uuid`.\",)\nrebug> @eval Pkg.Types let (msg,) = Main.Rebugger.getstored(\"b5c899c2-a228-11e8-0877-d102334a9f65\")\n       begin\n           throw(PkgError(join(msg)))\n       end\n       endNote that only five methods got captured but the stacktrace is much longer. Most of these methods, however, start with #, an indication that they are generated methods rather than ones that appear in the source code. The interactive stacktrace visits only those methods that appear in the original source code.note: Note\nPkg is one of Julia\'s standard libraries, and to step into or trace Julia\'s stdlibs you must build Julia from source."
+    "text": "In the example above, you may have noticed the warning about the @colorant_str macro being omitted from the \"captured\" (interactive) expressions comprising the stacktrace. Macros are not traced.When many methods use keyword arguments, the apparent difference between the \"real\" stacktrace and the \"captured\" stacktrace can be quite dramatic:julia> using Pkg\n\njulia> Pkg.add(\"NoPkg\")\n  Updating registry at `~/.julia/registries/General`\n  Updating git-repo `https://github.com/JuliaRegistries/General.git`\nERROR: The following package names could not be resolved:\n * NoPkg (not found in project, manifest or registry)\nPlease specify by known `name=uuid`.\nStacktrace:\n [1] pkgerror(::String) at /home/tim/src/julia-1.0/usr/share/julia/stdlib/v1.0/Pkg/src/Types.jl:120\n [2] #ensure_resolved#42(::Bool, ::Function, ::Pkg.Types.EnvCache, ::Array{Pkg.Types.PackageSpec,1}) at /home/tim/src/julia-1.0/usr/share/julia/stdlib/v1.0/Pkg/src/Types.jl:890\n [3] #ensure_resolved at ./none:0 [inlined]\n [4] #add_or_develop#13(::Symbol, ::Bool, ::Base.Iterators.Pairs{Union{},Union{},Tuple{},NamedTuple{(),Tuple{}}}, ::Function, ::Pkg.Types.Context, ::Array{Pkg.Types.PackageSpec,1}) at /home/tim/src/julia-1.0/usr/share/julia/stdlib/v1.0/Pkg/src/API.jl:59\n [5] #add_or_develop at ./none:0 [inlined]\n [6] #add_or_develop#12 at /home/tim/src/julia-1.0/usr/share/julia/stdlib/v1.0/Pkg/src/API.jl:29 [inlined]\n [7] #add_or_develop at ./none:0 [inlined]\n [8] #add_or_develop#11(::Base.Iterators.Pairs{Symbol,Symbol,Tuple{Symbol},NamedTuple{(:mode,),Tuple{Symbol}}}, ::Function, ::Array{String,1}) at /home/tim/src/julia-1.0/usr/share/julia/stdlib/v1.0/Pkg/src/API.jl:28\n [9] #add_or_develop at ./none:0 [inlined]\n [10] #add_or_develop#10 at /home/tim/src/julia-1.0/usr/share/julia/stdlib/v1.0/Pkg/src/API.jl:27 [inlined]\n [11] #add_or_develop at ./none:0 [inlined]\n [12] #add#18 at /home/tim/src/julia-1.0/usr/share/julia/stdlib/v1.0/Pkg/src/API.jl:69 [inlined]\n [13] add(::String) at /home/tim/src/julia-1.0/usr/share/julia/stdlib/v1.0/Pkg/src/API.jl:69\n [14] top-level scope at none:0\n\njulia> Pkg.add(\"NoPkg\")  # hit Meta-s here\nCaptured elements of stacktrace:\n[1] pkgerror(msg::String...) in Pkg.Types at /home/tim/src/julia-1.0/usr/share/julia/stdlib/v1.0/Pkg/src/Types.jl:120\n[2] add(args...) in Pkg.API at /home/tim/src/julia-1.0/usr/share/julia/stdlib/v1.0/Pkg/src/API.jl:69\npkgerror(msg::String...) in Pkg.Types at /home/tim/src/julia-1.0/usr/share/julia/stdlib/v1.0/Pkg/src/Types.jl:120\n  msg = (\"The following package names could not be resolved:\\n * NoPkg (not found in project, manifest or registry)\\nPlease specify by known `name=uuid`.\",)\nrebug> @eval Pkg.Types let (msg,) = Main.Rebugger.getstored(\"161c53ba-0dfe-11e9-0f8f-59f468aec692\")\n       begin\n           throw(PkgError(join(msg)))\n       end\n       endNote that only two methods got captured but the stacktrace is much longer. Most of these methods, however, start with #, an indication that they are generated (keyword-handling) methods rather than ones that appear directly in the source code. For now, Rebugger omits these entries. However, you can enter (i.e., Meta-e) such methods from one that is higher in the stack trace."
 },
 
 {
-    "location": "usage.html#Modified-\"signatures\"-1",
+    "location": "usage/#Modified-\"signatures\"-1",
     "page": "Usage",
     "title": "Modified \"signatures\"",
     "category": "section",
@@ -105,7 +105,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "config.html#",
+    "location": "config/#",
     "page": "Configuration",
     "title": "Configuration",
     "category": "page",
@@ -113,7 +113,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "config.html#Configuration-1",
+    "location": "config/#Configuration-1",
     "page": "Configuration",
     "title": "Configuration",
     "category": "section",
@@ -121,7 +121,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "config.html#Run-on-REPL-startup-1",
+    "location": "config/#Run-on-REPL-startup-1",
     "page": "Configuration",
     "title": "Run on REPL startup",
     "category": "section",
@@ -129,7 +129,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "config.html#Customize-keybindings-1",
+    "location": "config/#Customize-keybindings-1",
     "page": "Configuration",
     "title": "Customize keybindings",
     "category": "section",
@@ -137,7 +137,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "limitations.html#",
+    "location": "limitations/#",
     "page": "Limitations",
     "title": "Limitations",
     "category": "page",
@@ -145,7 +145,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "limitations.html#Limitations-1",
+    "location": "limitations/#Limitations-1",
     "page": "Limitations",
     "title": "Limitations",
     "category": "section",
@@ -153,7 +153,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "internals.html#",
+    "location": "internals/#",
     "page": "How Rebugger works",
     "title": "How Rebugger works",
     "category": "page",
@@ -161,7 +161,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "internals.html#How-Rebugger-works-1",
+    "location": "internals/#How-Rebugger-works-1",
     "page": "How Rebugger works",
     "title": "How Rebugger works",
     "category": "section",
@@ -169,7 +169,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "internals.html#Implementation-of-\"step-in\"-1",
+    "location": "internals/#Implementation-of-\"step-in\"-1",
     "page": "How Rebugger works",
     "title": "Implementation of \"step in\"",
     "category": "section",
@@ -177,7 +177,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "internals.html#Caller-capture-1",
+    "location": "internals/#Caller-capture-1",
     "page": "How Rebugger works",
     "title": "Caller capture",
     "category": "section",
@@ -185,7 +185,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "internals.html#Callee-capture-1",
+    "location": "internals/#Callee-capture-1",
     "page": "How Rebugger works",
     "title": "Callee capture",
     "category": "section",
@@ -193,7 +193,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "internals.html#Generating-the-new-buffer-contents-(the-let-expression)-1",
+    "location": "internals/#Generating-the-new-buffer-contents-(the-let-expression)-1",
     "page": "How Rebugger works",
     "title": "Generating the new buffer contents (the let expression)",
     "category": "section",
@@ -201,7 +201,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "internals.html#Implementation-of-\"catch-stacktrace\"-1",
+    "location": "internals/#Implementation-of-\"catch-stacktrace\"-1",
     "page": "How Rebugger works",
     "title": "Implementation of \"catch stacktrace\"",
     "category": "section",
@@ -209,7 +209,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "reference.html#",
+    "location": "reference/#",
     "page": "Developer reference",
     "title": "Developer reference",
     "category": "page",
@@ -217,7 +217,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "reference.html#Developer-reference-1",
+    "location": "reference/#Developer-reference-1",
     "page": "Developer reference",
     "title": "Developer reference",
     "category": "section",
@@ -225,7 +225,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "reference.html#Rebugger.stepin",
+    "location": "reference/#Rebugger.stepin",
     "page": "Developer reference",
     "title": "Rebugger.stepin",
     "category": "function",
@@ -233,7 +233,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "reference.html#Rebugger.prepare_caller_capture!",
+    "location": "reference/#Rebugger.prepare_caller_capture!",
     "page": "Developer reference",
     "title": "Rebugger.prepare_caller_capture!",
     "category": "function",
@@ -241,7 +241,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "reference.html#Rebugger.method_capture_from_callee",
+    "location": "reference/#Rebugger.method_capture_from_callee",
     "page": "Developer reference",
     "title": "Rebugger.method_capture_from_callee",
     "category": "function",
@@ -249,7 +249,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "reference.html#Rebugger.signature_names!",
+    "location": "reference/#Rebugger.signature_names!",
     "page": "Developer reference",
     "title": "Rebugger.signature_names!",
     "category": "function",
@@ -257,7 +257,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "reference.html#Capturing-arguments-1",
+    "location": "reference/#Capturing-arguments-1",
     "page": "Developer reference",
     "title": "Capturing arguments",
     "category": "section",
@@ -265,7 +265,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "reference.html#Rebugger.capture_stacktrace",
+    "location": "reference/#Rebugger.capture_stacktrace",
     "page": "Developer reference",
     "title": "Rebugger.capture_stacktrace",
     "category": "function",
@@ -273,7 +273,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "reference.html#Rebugger.pregenerated_stacktrace",
+    "location": "reference/#Rebugger.pregenerated_stacktrace",
     "page": "Developer reference",
     "title": "Rebugger.pregenerated_stacktrace",
     "category": "function",
@@ -281,7 +281,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "reference.html#Rebugger.linerange",
+    "location": "reference/#Rebugger.linerange",
     "page": "Developer reference",
     "title": "Rebugger.linerange",
     "category": "function",
@@ -289,7 +289,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "reference.html#Capturing-stacktrace-1",
+    "location": "reference/#Capturing-stacktrace-1",
     "page": "Developer reference",
     "title": "Capturing stacktrace",
     "category": "section",
@@ -297,7 +297,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "reference.html#Rebugger.clear",
+    "location": "reference/#Rebugger.clear",
     "page": "Developer reference",
     "title": "Rebugger.clear",
     "category": "function",
@@ -305,7 +305,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "reference.html#Rebugger.getstored",
+    "location": "reference/#Rebugger.getstored",
     "page": "Developer reference",
     "title": "Rebugger.getstored",
     "category": "function",
@@ -313,7 +313,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "reference.html#Utilities-1",
+    "location": "reference/#Utilities-1",
     "page": "Developer reference",
     "title": "Utilities",
     "category": "section",
