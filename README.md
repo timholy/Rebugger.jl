@@ -5,7 +5,7 @@
 [![codecov.io](http://codecov.io/github/timholy/Rebugger.jl/coverage.svg?branch=master)](http://codecov.io/github/timholy/Rebugger.jl?branch=master)
 
 Rebugger is an expression-level debugger for Julia.
-It has no ability to interact with or manipulate call stacks (see [ASTInterpreter2](https://github.com/Keno/ASTInterpreter2.jl)),
+It has no ability to interact with or manipulate call stacks (see [Gallium](https://github.com/Keno/Gallium.jl)),
 but it can trace execution via the manipulation of Julia expressions.
 
 The name "Rebugger" has 3 meanings:
@@ -19,7 +19,7 @@ The name "Rebugger" has 3 meanings:
 **See the documentation**:
 
 [![](https://img.shields.io/badge/docs-stable-blue.svg)](https://timholy.github.io/Rebugger.jl/stable)
-[![](https://img.shields.io/badge/docs-latest-blue.svg)](https://timholy.github.io/Rebugger.jl/latest)
+[![](https://img.shields.io/badge/docs-latest-blue.svg)](https://timholy.github.io/Rebugger.jl/dev)
 
 Note that Rebugger may benefit from custom configuration, as described in the documentation.
 
