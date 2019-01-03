@@ -19,7 +19,7 @@ Select the expression you want to step into by positioning "point" (your cursor)
 at the desired location in the command line:
 
 ```@raw html
-<img src="images/stepin1.png" width="160px"/>
+<img src="../images/stepin1.png" width="160px"/>
 ```
 
 It's essential that point is at the very first character of the expression, in this case on
@@ -33,7 +33,7 @@ the `s` in `show`.
 Now if you hit Meta-e, you should see something like this:
 
 ```@raw html
-<img src="images/stepin2.png" width="660px"/>
+<img src="../images/stepin2.png" width="660px"/>
 ```
 
 (If not, check [Keyboard shortcuts](@ref) and [Customize keybindings](@ref).)
@@ -53,7 +53,7 @@ beginning of the `_show_empty` call and hit Meta-e.
 The display should now look like this:
 
 ```@raw html
-<img src="images/stepin3.png" width="690px"/>
+<img src="../images/stepin3.png" width="690px"/>
 ```
 
 This time, note the yellow/orange line: this is a warning message, and you should pay attention to these.
@@ -67,7 +67,7 @@ As an experiment, try stepping into the `show_vector` call from the example abov
 and adding `@show limited` to display a local variable's value:
 
 ```@raw html
-<img src="images/stepin4.png" width="800px"/>
+<img src="../images/stepin4.png" width="800px"/>
 ```
 
 !!! note
