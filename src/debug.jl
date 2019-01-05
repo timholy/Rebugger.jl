@@ -627,7 +627,7 @@ rename_method(ex::ExLike, name::Symbol, callerobj) = rename_method!(copy(ex), na
 
 function pop_annotations(def::ExLike)
     while Revise.is_trivial_block_wrapper(def) || (
-            def isa ExLike && def.head == :macrocall && def.args[1] ∈ Revise.poppable_macro)
+            def isa ExLike && def.head == :macrocall && Revise.is_poppable_macro(def.args[1]))
         def = def.args[end]
     end
     def
