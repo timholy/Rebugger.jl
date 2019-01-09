@@ -27,6 +27,15 @@ const hv_test = HasValue(11.1)
 @noinline kwfuncmiddle(x::T, y::Integer=1; kw1="hello", kwargs...) where T = kwfuncerr(y)
 @inline kwfunctop(x; kwargs...) = kwfuncmiddle(x, 2; kwargs...)
 
+function apply(f, args...)
+    kwvarargs(f)
+    f(args...)
+end
+
+calldo() = apply(2, 3, 4) do x, y, z
+    snoop3(x, y, z)
+end
+
 end
 
 module RBT2

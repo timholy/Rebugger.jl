@@ -289,6 +289,30 @@ Base.show(io::IO, ::ErrorsOnShow) = throw(ArgumentError("no show"))
             end"""
             @test Rebugger.getstored(string(uuid)) == (max, ([1,5], [2,-3]), typeof(max))
             Core.eval(Main, Meta.parse(cmd)) == [2,5]
+
+            # Step in to a do block
+            str = "RebuggerTesting.calldo()"
+            uuidref, cmd = run_stepin(str, str)
+            uuid1 = uuidextractor(cmd)
+            @test uuid1 == uuidref
+            @test cmd == """
+            @eval Main.RebuggerTesting let () = Main.Rebugger.getstored("$uuid1")
+            begin
+                apply(2, 3, 4) do x, y, z
+                    snoop3(x, y, z)
+                end
+            end
+            end"""
+            uuidref, cmd = run_stepin(cmd, "apply")
+            uuid1 = uuidextractor(cmd)
+            @test uuid1 == uuidref
+            @test cmd == """
+            @eval Main.RebuggerTesting let (f, args) = Main.Rebugger.getstored("$uuid1")
+            begin
+                kwvarargs(f)
+                f(args...)
+            end
+            end"""
         end
 
         @testset "Capture stacktrace" begin
