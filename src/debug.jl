@@ -354,6 +354,12 @@ function prepare_caller_capture!(io)  # for testing, needs to work on a normal I
         callexpr = callexpr.args[1]
     elseif callexpr.head == :...
         callexpr = callexpr.args[1]
+    elseif callexpr.head == :do
+        callexpr = Expr(
+            :call,
+            callexpr.args[1].args[1],         # function name
+            callexpr.args[2],                 # do block (anonymous function)
+            callexpr.args[1].args[2:end]...)  # other arguments
     end
     # Must be a call or broadcast
     ((callexpr.head == :call) | (callexpr.head == :.)) || throw(Meta.ParseError("point must be at a call expression, got $callexpr"))
