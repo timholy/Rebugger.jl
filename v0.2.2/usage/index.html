@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Usage · Rebugger.jl</title><link href="https://cdnjs.cloudflare.com/ajax/libs/normalize/4.2.0/normalize.min.css" rel="stylesheet" type="text/css"/><link href="https://fonts.googleapis.com/css?family=Lato|Roboto+Mono" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.6.3/css/font-awesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/styles/default.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.2.0/require.min.js" data-main="../assets/documenter.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link href="../assets/documenter.css" rel="stylesheet" type="text/css"/></head><body><nav class="toc"><h1>Rebugger.jl</h1><select id="version-selector" onChange="window.location.href=this.value" style="visibility: hidden"></select><form class="search" id="search-form" action="../search/"><input id="search-query" name="q" type="text" placeholder="Search docs"/></form><ul><li><a class="toctext" href="../">Home</a></li><li class="current"><a class="toctext" href>Usage</a><ul class="internal"><li><a class="toctext" href="#Stepping-in-1">Stepping in</a></li><li><a class="toctext" href="#Capturing-stacktraces-1">Capturing stacktraces</a></li><li><a class="toctext" href="#Important-notes-1">Important notes</a></li></ul></li><li><a class="toctext" href="../config/">Configuration</a></li><li><a class="toctext" href="../limitations/">Limitations</a></li><li><a class="toctext" href="../internals/">How Rebugger works</a></li><li><a class="toctext" href="../reference/">Developer reference</a></li></ul></nav><article id="docs"><header><nav><ul><li><a href>Usage</a></li></ul><a class="edit-page" href="https://github.com/timholy/Rebugger.jl/blob/master/docs/src/usage.md"><span class="fa"></span> Edit on GitHub</a></nav><hr/><div id="topbar"><span>Usage</span><a class="fa fa-bars" href="#"></a></div></header><h1><a class="nav-anchor" id="Usage-1" href="#Usage-1">Usage</a></h1><p>Rebugger works from Julia&#39;s native REPL prompt. Currently there are exactly two keybindings, which here will be described as:</p><ul><li>Meta-e, which maps to &quot;enter&quot; or &quot;step in&quot;</li><li>Meta-s, which maps to &quot;stacktrace&quot; (for commands that throw an error)</li></ul><p>Meta often maps to <code>Esc</code>, and if using <code>Esc</code> you should hit the two keys in sequence rather than simultaneously. For many users <code>Alt</code> (sometimes specifically <code>Left-Alt</code>, or <code>Option</code> on macs) may be more convenient, as it can be pressed simultaneously with the key.</p><p>Of course, you may have configured Rebugger to use different key bindings (see <a href="../config/#Customize-keybindings-1">Customize keybindings</a>).</p><h2><a class="nav-anchor" id="Stepping-in-1" href="#Stepping-in-1">Stepping in</a></h2><p>Select the expression you want to step into by positioning &quot;point&quot; (your cursor) at the desired location in the command line:</p><img src="../images/stepin1.png" width="160px"/><p>It&#39;s essential that point is at the very first character of the expression, in this case on the <code>s</code> in <code>show</code>.</p><div class="admonition note"><div class="admonition-title">Note</div><div class="admonition-text"><p>Don&#39;t confuse the REPL&#39;s cursor with your mouse pointer. Your mouse is essentially irrelevant on the REPL; use arrow keys or the other <a href="https://docs.julialang.org/en/latest/stdlib/REPL/">navigation features of Julia&#39;s REPL</a>.</p></div></div><p>Now if you hit Meta-e, you should see something like this:</p><img src="../images/stepin2.png" width="660px"/><p>(If not, check <a href="../#Keyboard-shortcuts-1">Keyboard shortcuts</a> and <a href="../config/#Customize-keybindings-1">Customize keybindings</a>.) The cyan &quot;Info&quot; line is an indication that the method you&#39;re stepping into is a function in Julia&#39;s Base module; this is shown by Revise (not Rebugger), and only happens once per session.</p><p>The remaining lines correspond to the Rebugger header and user input. The magenta line tells you which method you are stepping into. Indented blue line(s) show the value(s) of any input arguments or type parameters.</p><p>If you&#39;re following along, move your cursor to the next <code>show</code> call as illustrated above. Hit Meta-e again. You should see a new <code>show</code> method, this time with two input arguments.</p><p>Now let&#39;s demonstrate another important display item: position point at the beginning of the <code>_show_empty</code> call and hit Meta-e. The display should now look like this:</p><img src="../images/stepin3.png" width="690px"/><p>This time, note the yellow/orange line: this is a warning message, and you should pay attention to these. (You might also see red lines, which are generally more serious &quot;errors.&quot;) In this case execution never reached <code>_show_empty</code>, because it enters <code>show_vector</code> instead; if you moved your cursor there, you could trace execution more completely.</p><p>You can edit these expressions to insert code to display variables or test changes to the code. As an experiment, try stepping into the <code>show_vector</code> call from the example above and adding <code>@show limited</code> to display a local variable&#39;s value:</p><img src="../images/stepin4.png" width="800px"/><div class="admonition note"><div class="admonition-title">Note</div><div class="admonition-text"><p>When editing expressions, you can insert a blank line with Meta-Enter (i.e., Esc-Enter, Alt-Enter, or Option-Enter). See the many <a href="https://docs.julialang.org/en/latest/stdlib/REPL/#Key-bindings-1">advanced features of Julia&#39;s REPL</a> that allow you to efficiently edit these <code>let</code>-blocks.</p></div></div><p>Having illustrated the importance of &quot;point&quot; and the various colors used for messages from Rebugger, to ensure readability the remaining examples will be rendered as text.</p><h2><a class="nav-anchor" id="Capturing-stacktraces-1" href="#Capturing-stacktraces-1">Capturing stacktraces</a></h2><p>For a quick demo, we&#39;ll use the <code>Colors</code> package (<code>add</code> it if you don&#39;t have it) and deliberately choose a method that will end in an error: we&#39;ll try to parse a string as a Hue, Saturation, Lightness (HSL) color, except we&#39;ll &quot;forget&quot; that hue cannot be expressed as a percentage and deliberately trigger an error:</p><pre><code class="language-julia">julia&gt; using Colors
+
+julia&gt; colorant&quot;hsl(80%, 20%, 15%)&quot;
+ERROR: LoadError: hue cannot end in %
+Stacktrace:
+ [1] error(::String) at ./error.jl:33
+ [2] parse_hsl_hue(::SubString{String}) at /home/tim/.julia/dev/Colors/src/parse.jl:26
+ [3] _parse_colorant(::String) at /home/tim/.julia/dev/Colors/src/parse.jl:75
+ [4] _parse_colorant at /home/tim/.julia/dev/Colors/src/parse.jl:112 [inlined]
+ [5] parse(::Type{Colorant}, ::String) at /home/tim/.julia/dev/Colors/src/parse.jl:140
+ [6] @colorant_str(::LineNumberNode, ::Module, ::Any) at /home/tim/.julia/dev/Colors/src/parse.jl:147
+in expression starting at REPL[3]:1</code></pre><p>To capture the stacktrace, type the last line again or hit the up arrow, but instead of pressing Enter, type Meta-s. After a short delay, you should see something like this:</p><pre><code class="language-julia">julia&gt; colorant&quot;hsl(80%, 20%, 15%)&quot;
+┌ Warning: Tuple{getfield(Colors, Symbol(&quot;#@colorant_str&quot;)),LineNumberNode,Module,Any} was not found, perhaps it was generated by code
+└ @ Revise ~/.julia/dev/Revise/src/Revise.jl:659
+Captured elements of stacktrace:
+[1] parse_hsl_hue(num::AbstractString) in Colors at /home/tim/.julia/packages/Colors/4hvzi/src/parse.jl:25
+[2] _parse_colorant(desc::AbstractString) in Colors at /home/tim/.julia/packages/Colors/4hvzi/src/parse.jl:51
+[3] _parse_colorant(::Type{C}, ::Type{SUP}, desc::AbstractString) where {C&lt;:Colorant, SUP} in Colors at /home/tim/.julia/packages/Colors/4hvzi/src/parse.jl:112
+[4] parse(::Type{C}, desc::AbstractString) where C&lt;:Colorant in Colors at /home/tim/.julia/packages/Colors/4hvzi/src/parse.jl:140
+parse_hsl_hue(num::AbstractString) in Colors at /home/tim/.julia/packages/Colors/4hvzi/src/parse.jl:25
+  num = 80%
+rebug&gt; @eval Colors let (num,) = Main.Rebugger.getstored(&quot;57dbc76a-0def-11e9-1dbf-ef97d29d2e25&quot;)
+       begin
+           if num[end] == &#39;%&#39;
+               error(&quot;hue cannot end in %&quot;)
+           else
+               return parse(Int, num, base=10)
+           end
+       end
+       end</code></pre><p>(Again, if this doesn&#39;t happen check <a href="../#Keyboard-shortcuts-1">Keyboard shortcuts</a> and <a href="../config/#Customize-keybindings-1">Customize keybindings</a>.) You are in the method corresponding to <code>[1]</code> in the stacktrace. Now you can navigate with your up and down arrows to browse the captured stacktrace. For example, if you hit the up arrow twice, you will be in the method corresponding to <code>[3]</code>:</p><pre><code class="language-julia">julia&gt; colorant&quot;hsl(80%, 20%, 15%)&quot;
+┌ Warning: Tuple{getfield(Colors, Symbol(&quot;#@colorant_str&quot;)),LineNumberNode,Module,Any} was not found, perhaps it was generated by code
+└ @ Revise ~/.julia/dev/Revise/src/Revise.jl:659
+Captured elements of stacktrace:
+[1] parse_hsl_hue(num::AbstractString) in Colors at /home/tim/.julia/packages/Colors/4hvzi/src/parse.jl:25
+[2] _parse_colorant(desc::AbstractString) in Colors at /home/tim/.julia/packages/Colors/4hvzi/src/parse.jl:51
+[3] _parse_colorant(::Type{C}, ::Type{SUP}, desc::AbstractString) where {C&lt;:Colorant, SUP} in Colors at /home/tim/.julia/packages/Colors/4hvzi/src/parse.jl:112
+[4] parse(::Type{C}, desc::AbstractString) where C&lt;:Colorant in Colors at /home/tim/.julia/packages/Colors/4hvzi/src/parse.jl:140
+_parse_colorant(::Type{C}, ::Type{SUP}, desc::AbstractString) where {C&lt;:Colorant, SUP} in Colors at /home/tim/.julia/packages/Colors/4hvzi/src/parse.jl:112
+  C = Colorant
+  SUP = Any
+  desc = hsl(80%, 20%, 15%)
+rebug&gt; @eval Colors let (C, SUP, desc) = Main.Rebugger.getstored(&quot;57d9ebc0-0def-11e9-2ab0-e5d1e4c6e82d&quot;)
+       begin
+           _parse_colorant(desc)
+       end
+       end</code></pre><p>You can hit the down arrow and go back to earlier entries in the trace. Alternatively, you can pick any of these expressions to execute (hit Enter) or edit before execution. You can use the REPL history to test the results of many different changes to the same &quot;method&quot;; the &quot;method&quot; will be run with the same inputs each time.</p><div class="admonition note"><div class="admonition-title">Note</div><div class="admonition-text"><p>When point is at the end of the input, the up and down arrows step through the history. But if you move point into the method body (e.g., by using left-arrow), the up and down arrows move within the method body. If you&#39;ve entered edit mode, you can go back to history mode using PgUp and PgDn.</p></div></div><h2><a class="nav-anchor" id="Important-notes-1" href="#Important-notes-1">Important notes</a></h2><h3><a class="nav-anchor" id="&quot;Missing&quot;-methods-from-stacktraces-1" href="#&quot;Missing&quot;-methods-from-stacktraces-1">&quot;Missing&quot; methods from stacktraces</a></h3><p>In the example above, you may have noticed the warning about the <code>@colorant_str</code> macro being omitted from the &quot;captured&quot; (interactive) expressions comprising the stacktrace. Macros are not traced.</p><p>When many methods use keyword arguments, the apparent difference between the &quot;real&quot; stacktrace and the &quot;captured&quot; stacktrace can be quite dramatic:</p><pre><code class="language-julia">julia&gt; using Pkg
+
+julia&gt; Pkg.add(&quot;NoPkg&quot;)
+  Updating registry at `~/.julia/registries/General`
+  Updating git-repo `https://github.com/JuliaRegistries/General.git`
+ERROR: The following package names could not be resolved:
+ * NoPkg (not found in project, manifest or registry)
+Please specify by known `name=uuid`.
+Stacktrace:
+ [1] pkgerror(::String) at /home/tim/src/julia-1.0/usr/share/julia/stdlib/v1.0/Pkg/src/Types.jl:120
+ [2] #ensure_resolved#42(::Bool, ::Function, ::Pkg.Types.EnvCache, ::Array{Pkg.Types.PackageSpec,1}) at /home/tim/src/julia-1.0/usr/share/julia/stdlib/v1.0/Pkg/src/Types.jl:890
+ [3] #ensure_resolved at ./none:0 [inlined]
+ [4] #add_or_develop#13(::Symbol, ::Bool, ::Base.Iterators.Pairs{Union{},Union{},Tuple{},NamedTuple{(),Tuple{}}}, ::Function, ::Pkg.Types.Context, ::Array{Pkg.Types.PackageSpec,1}) at /home/tim/src/julia-1.0/usr/share/julia/stdlib/v1.0/Pkg/src/API.jl:59
+ [5] #add_or_develop at ./none:0 [inlined]
+ [6] #add_or_develop#12 at /home/tim/src/julia-1.0/usr/share/julia/stdlib/v1.0/Pkg/src/API.jl:29 [inlined]
+ [7] #add_or_develop at ./none:0 [inlined]
+ [8] #add_or_develop#11(::Base.Iterators.Pairs{Symbol,Symbol,Tuple{Symbol},NamedTuple{(:mode,),Tuple{Symbol}}}, ::Function, ::Array{String,1}) at /home/tim/src/julia-1.0/usr/share/julia/stdlib/v1.0/Pkg/src/API.jl:28
+ [9] #add_or_develop at ./none:0 [inlined]
+ [10] #add_or_develop#10 at /home/tim/src/julia-1.0/usr/share/julia/stdlib/v1.0/Pkg/src/API.jl:27 [inlined]
+ [11] #add_or_develop at ./none:0 [inlined]
+ [12] #add#18 at /home/tim/src/julia-1.0/usr/share/julia/stdlib/v1.0/Pkg/src/API.jl:69 [inlined]
+ [13] add(::String) at /home/tim/src/julia-1.0/usr/share/julia/stdlib/v1.0/Pkg/src/API.jl:69
+ [14] top-level scope at none:0
+
+julia&gt; Pkg.add(&quot;NoPkg&quot;)  # hit Meta-s here
+Captured elements of stacktrace:
+[1] pkgerror(msg::String...) in Pkg.Types at /home/tim/src/julia-1.0/usr/share/julia/stdlib/v1.0/Pkg/src/Types.jl:120
+[2] add(args...) in Pkg.API at /home/tim/src/julia-1.0/usr/share/julia/stdlib/v1.0/Pkg/src/API.jl:69
+pkgerror(msg::String...) in Pkg.Types at /home/tim/src/julia-1.0/usr/share/julia/stdlib/v1.0/Pkg/src/Types.jl:120
+  msg = (&quot;The following package names could not be resolved:\n * NoPkg (not found in project, manifest or registry)\nPlease specify by known `name=uuid`.&quot;,)
+rebug&gt; @eval Pkg.Types let (msg,) = Main.Rebugger.getstored(&quot;161c53ba-0dfe-11e9-0f8f-59f468aec692&quot;)
+       begin
+           throw(PkgError(join(msg)))
+       end
+       end</code></pre><p>Note that only two methods got captured but the stacktrace is much longer. Most of these methods, however, start with <code>#</code>, an indication that they are generated (keyword-handling) methods rather than ones that appear directly in the source code. For now, Rebugger omits these entries. However, you can enter (i.e., Meta-e) such methods from one that is higher in the stack trace.</p><h3><a class="nav-anchor" id="Modified-&quot;signatures&quot;-1" href="#Modified-&quot;signatures&quot;-1">Modified &quot;signatures&quot;</a></h3><p>Some &quot;methods&quot; you see in the <code>let</code> block on the command line will have their &quot;signatures&quot; slightly modified. For example:</p><pre><code class="language-julia">julia&gt; dest = zeros(3);
+
+julia&gt; copyto!(dest, 1:4)
+ERROR: BoundsError: attempt to access 3-element Array{Float64,1} at index [1, 2, 3, 4]
+Stacktrace:
+ [1] copyto!(::IndexLinear, ::Array{Float64,1}, ::IndexLinear, ::UnitRange{Int64}) at ./abstractarray.jl:728
+ [2] copyto!(::Array{Float64,1}, ::UnitRange{Int64}) at ./abstractarray.jl:723
+ [3] top-level scope at none:0
+
+julia&gt; copyto!(dest, 1:4)  # hit Meta-s here
+Captured elements of stacktrace:
+[1] copyto!(::IndexStyle, dest::AbstractArray, ::IndexStyle, src::AbstractArray) in Base at abstractarray.jl:727
+[2] copyto!(dest::AbstractArray, src::AbstractArray) in Base at abstractarray.jl:723
+copyto!(::IndexStyle, dest::AbstractArray, ::IndexStyle, src::AbstractArray) in Base at abstractarray.jl:727
+  __IndexStyle_1 = IndexLinear()
+  dest = [0.0, 0.0, 0.0]
+  __IndexStyle_2 = IndexLinear()
+  src = 1:4
+rebug&gt; @eval Base let (__IndexStyle_1, dest, __IndexStyle_2, src) = Main.Rebugger.getstored(&quot;21a8ab94-a228-11e8-0563-256e39b3996e&quot;)
+       begin
+           (destinds, srcinds) = (LinearIndices(dest), LinearIndices(src))
+           isempty(srcinds) || (checkbounds(Bool, destinds, first(srcinds)) &amp;&amp; checkbounds(Bool, destinds, last(srcinds)) || throw(BoundsError(dest, srcinds)))
+           @inbounds for i = srcinds
+                   dest[i] = src[i]
+               end
+           return dest
+       end
+       end</code></pre><p>Note that this <code>copyto!</code> method contains two anonymous arguments annotated <code>::IndexStyle</code>. Rebugger will make up names for these arguments (here <code>__IndexStyle_1</code> and <code>__IndexStyle_2</code>). While these will be distinct from one another, Rebugger does not check whether they conflict with any internal names.</p><div class="admonition note"><div class="admonition-title">Note</div><div class="admonition-text"><p>This example illustrates a second important point: you may have noticed that this one was considerably slower to print. That&#39;s because capturing stacktraces overwrites the methods involved. Since <code>copyto!</code> is widely used, this forces recompilation of a lot of methods in Base.</p><p>In contrast with capturing stacktraces, stepping in does not overwrite methods, so is sometimes preferred.</p></div></div><footer><hr/><a class="previous" href="../"><span class="direction">Previous</span><span class="title">Home</span></a><a class="next" href="../config/"><span class="direction">Next</span><span class="title">Configuration</span></a></footer></article></body></html>
