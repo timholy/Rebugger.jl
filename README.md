@@ -14,6 +14,11 @@ The name "Rebugger" has 3 meanings:
 - it is the [Revise](https://github.com/timholy/Revise.jl)-based debugger
 - it supports repeated-execution debugging
 
+
+### JuliaCon 2018 Talk 
+Click image below to open in YouTube:   
+[![](https://img.youtube.com/vi/KuM0AGaN09s/0.jpg)](https://youtu.be/KuM0AGaN09s?t=515)
+
 ## Installation and usage
 
 **See the documentation**:
