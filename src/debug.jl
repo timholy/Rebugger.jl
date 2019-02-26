@@ -451,7 +451,8 @@ function method_capture_from_callee(method, def; overwrite::Bool=false)
     qallnames = QuoteNode.(allnames)
     uuid = uuid1()
     uuidstr = string(uuid)
-    storeexpr = :(Main.Rebugger.setstored!($uuidstr=>Main.Rebugger.Stored($method, ($(qallnames...),), ($(allnames...),)) ) )
+    makepair = Pair  # Needed for debugging into Core.Compiler, which has its own Pair
+    storeexpr = :(Main.Rebugger.setstored!($makepair($uuidstr, Main.Rebugger.Stored($method, ($(qallnames...),), ($(allnames...),)) ) ))
     capture_body = overwrite ? quote
         $storeexpr
         $body
