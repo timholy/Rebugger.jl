@@ -6,9 +6,8 @@ import REPL.LineEdit, REPL.Terminals
 using REPL.LineEdit: buffer, bufend, content, edit_splice!
 using REPL.LineEdit: transition, terminal, mode, state
 
-using Revise
-using Revise: ExLike, RelocatableExpr, get_signature, funcdef_body, get_def, striplines!
-using Revise: printf_maxsize
+using CodeTracking, Revise
+using Revise: RelocatableExpr, striplines!, printf_maxsize, whichtt, hasfile, unwrap
 using HeaderREPLs
 
 const msgs = []  # for debugging. The REPL-magic can sometimes overprint error messages

@@ -335,7 +335,7 @@ Base.show(io::IO, ::ErrorsOnShow) = throw(ArgumentError("no show"))
             usrtrace, defs = Rebugger.pregenerated_stacktrace(st; topname=Symbol("macro expansion"))
             @test length(unique(usrtrace)) == length(usrtrace)
             m = @which RebuggerTesting.kwfuncmiddle(1,1)
-            @test usrtrace[1] == m || usrtrace[2] == m
+            @test m ∈ usrtrace
 
             # A case that tests inlining and several other aspects of argument capture
             ex = :([1, 2, 3] .* [1, 2])

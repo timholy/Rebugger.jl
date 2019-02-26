@@ -59,10 +59,10 @@ end
 Compute the range of lines occupied by `expr`.
 Returns `nothing` if no line statements can be found.
 """
-function linerange(def::ExLike, offset=0)
+function linerange(def::Expr)
     start, haslinestart = findline(def, identity)
     stop, haslinestop  = findline(def, Iterators.reverse)
-    (haslinestart & haslinestop) && return (start+offset):(stop+offset)
+    (haslinestart & haslinestop) && return start:stop
     return nothing
 end
 
@@ -70,7 +70,7 @@ function findline(ex, order)
     ex.head == :line && return ex.args[1], true
     for a in order(ex.args)
         a isa LineNumberNode && return a.line, true
-        if a isa ExLike
+        if a isa Expr
             ln, hasline = findline(a, order)
             hasline && return ln, true
         end
@@ -87,20 +87,18 @@ Not all methods can be looked up, but this attempts to resolve, e.g., keyword-ha
 and so on.
 """
 function pregenerated_stacktrace(trace; topname = :capture_stacktrace)
-    usrtrace, defs = Method[], RelocatableExpr[]
+    usrtrace, defs = Method[], Expr[]
     methodsused = Set{Method}()
 
     # When the method can't be found directly in the tables,
     # look it up by fie and line number
     function add_by_file_line(defmap, line)
-        for (def, info) in defmap
-            info == nothing && continue
-            sigts, offset = info
-            r = linerange(def, offset)
-            r == nothing && continue
+        for (rdef, sigts) in defmap
+            def = rdef.ex
+            (sigts === nothing || isempty(sigts)) && continue
+            r = linerange(def)  # FIXME offset
             if line ∈ r
-                mths = Base._methods_by_ftype(last(sigts), -1, typemax(UInt))
-                m = mths[end][3]    # the last method is the least specific that matches the signature (which would be more specific if it were used)
+                m = whichtt(last(sigts))
                 if m ∉ methodsused
                     push!(defs, def)
                     push!(usrtrace, m)
@@ -112,31 +110,21 @@ function pregenerated_stacktrace(trace; topname = :capture_stacktrace)
         return false
     end
     function add_by_file_line(pkgdata, file, line)
-        fi = get(pkgdata.fileinfos, file, nothing)
-        if fi !== nothing
-            Revise.maybe_parse_from_cache!(pkgdata, file)
-            for (mod, fmm) in fi.fm
-                add_by_file_line(fmm.defmap, line) && return true
-            end
+        fi = Revise.maybe_parse_from_cache!(pkgdata, relpath(file, pkgdata))
+        for (mod, exsigs) in fi.modexsigs
+            add_by_file_line(exsigs, line) && return true
         end
         return false
     end
 
     for (i, sf) in enumerate(trace)
-        sf.func == topname && break  # truncate at the chosen spot
+        (sf.func == topname || sf.func == Symbol("top-level scope")) && break  # truncate at the chosen spot
         sf.func ∈ notrace && continue
         mi = sf.linfo
         file = String(sf.file)
         if mi isa Core.MethodInstance
             method = mi.def
-            def = nothing
-            if String(method.name)[1] != '#'   # if not a keyword/default arg method
-                try
-                    def = Revise.get_def(method)
-                catch
-                    continue
-                end
-            end
+            def = definition(method)
             if def === nothing
                 # This may be a generated method, perhaps it's a keyword function handler
                 # Look for it by line number
@@ -151,15 +139,15 @@ function pregenerated_stacktrace(trace; topname = :capture_stacktrace)
                 pkgdata = Revise.pkgdatas[id]
                 cfile = get(Revise.src_file_key, file, file)
                 rpath = relpath(cfile, pkgdata)
-                haskey(pkgdata.fileinfos, rpath) || continue
-                Revise.maybe_parse_from_cache!(pkgdata, rpath)
-                fi = get(pkgdata.fileinfos, rpath, nothing)
-                if fi !== nothing
-                    add_by_file_line(fi.fm[method.module].defmap, sf)
-                end
+                hasfile(pkgdata, rpath) || continue
+                fi = Revise.maybe_parse_from_cache!(pkgdata, rpath)
+                # fi = get(pkgdata.fileinfos, rpath, nothing)
+                # if fi !== nothing
+                #     add_by_file_line(fi.fm[method.module].defmap, sf)
+                # end
             else
                 method ∈ methodsused && continue
-                def isa ExLike || continue
+                def isa Expr || continue
                 push!(defs, def)
                 push!(usrtrace, method)
             end
@@ -171,7 +159,7 @@ function pregenerated_stacktrace(trace; topname = :capture_stacktrace)
                 file = relpath(file, base_prefix)
                 id = Revise.get_tracked_id(Base)
                 pkgdata = Revise.pkgdatas[id]
-                if haskey(pkgdata.fileinfos, file)
+                if hasfile(pkgdata, file)
                     add_by_file_line(pkgdata, file, sf.line) && continue
                 elseif startswith(file, "compiler")
                     try
@@ -186,8 +174,9 @@ function pregenerated_stacktrace(trace; topname = :capture_stacktrace)
             end
             # Try all loaded packages
             for (id, pkgdata) in Revise.pkgdatas
-                rpath = relpath(file, pkgdata)
-                add_by_file_line(pkgdata, rpath, sf.line) && break
+                if hasfile(pkgdata, file)
+                    add_by_file_line(pkgdata, relpath(file, pkgdata), sf.line) && break
+                end
             end
         end
     end
@@ -215,6 +204,16 @@ function capture_stacktrace(mod::Module, command::Expr)
     end
     errored || error("$command did not throw an error")
     usrtrace, defs = pregenerated_stacktrace(trace)
+    # Eliminate duplicates. Keyword-funcs and default-arg funcs can return the same def
+    i = 1
+    while i < length(defs)
+        if defs[i] == defs[i+1]
+            deleteat!(defs, i)
+            deleteat!(usrtrace, i)
+        else
+            i += 1
+        end
+    end
     isempty(usrtrace) && error("failed to capture any elements of the stacktrace")
     println(stderr, "Captured elements of stacktrace:")
     show(stderr, MIME("text/plain"), usrtrace)
@@ -238,8 +237,9 @@ function capture_stacktrace!(f::Function, uuids::Vector, usrtrace, defs)
         return
     end
     method, def = usrtrace[end], defs[end]
-    if def != nothing
-        push!(uuids, method_capture_from_callee(method, def; overwrite=true))
+    if def !== nothing
+        uuid = method_capture_from_callee(method, def; overwrite=true)
+        push!(uuids, uuid)
     end
     # Recurse up the stack until we get to the top...
     pop!(usrtrace)
@@ -424,7 +424,7 @@ function method_capture_from_callee(method, def; overwrite::Bool=false)
     uuid = get(storemap, (method, overwrite), nothing)
     uuid != nothing && return uuid
     def = pop_annotations(def)
-    sigr, body = get_signature(def), unquote(funcdef_body(def))
+    sigr, body = def.args[1], def.args[2]
     sigr == nothing && throw(SignatureError(method))
     sigex = convert(Expr, sigr)
     if sigex.head == :(::)
@@ -468,7 +468,8 @@ function method_capture_from_callee(method, def; overwrite::Bool=false)
     capture_name == nothing && (dump(methname); dump(sigex); error("couldn't gensym"))
     # capture_name = _gensym(methname)
     mod = method.module
-    capture_function = Expr(:function, overwrite ? sigex : rename_method(sigex, capture_name, callerobj), capture_body)
+    head = def.head == :(=) ? :function : def.head  # allows us to intercept macros
+    capture_function = Expr(head, overwrite ? sigex : rename_method(sigex, capture_name, callerobj), capture_body)
     result = Core.eval(mod, capture_function)
     if !overwrite
         storefunc[uuid] = result
@@ -477,13 +478,8 @@ function method_capture_from_callee(method, def; overwrite::Bool=false)
     return uuid
 end
 function method_capture_from_callee(method; kwargs...)
-    # Could use a default arg above but this generates a more understandable error message
-    local def
-    try
-        def = get_def(method; modified_files=typeof(Revise.revision_queue)())
-    catch err
-        throw(DefMissing(method, err))
-    end
+    Revise.get_def(method; modified_files=typeof(Revise.revision_queue)())  # update while ignoring mtime issues here
+    def = definition(method)
     def == nothing && throw(DefMissing(method, nothing))
     method_capture_from_callee(method, def; kwargs...)
 end
@@ -492,7 +488,8 @@ function generate_let_command(method::Method, uuid::UUID)
     s = stored[uuid]
     @assert method == s.method
     argstring = '(' * join(s.varnames, ", ") * (length(s.varnames)==1 ? ",)" : ')')
-    body = convert(Expr, striplines!(copy(funcdef_body(get_def(method; modified_files=String[])))))
+    Revise.get_def(method; modified_files=String[])  # to avoid mtime updates
+    body = convert(Expr, striplines!(definition(method).args[end]))
     return """
         @eval $(method.module) let $argstring = Main.Rebugger.getstored(\"$uuid\")
         $body
@@ -545,10 +542,10 @@ julia> ex
 :(myzero(__Float64_1::Float64))
 ```
 """
-function signature_names!(sigex::ExLike)
+function signature_names!(sigex::Expr)
     # TODO: add parameter names
     argname(s::Symbol) = s
-    function argname(ex::ExLike)
+    function argname(ex::Expr)
         if ex.head == :(...) && length(ex.args) == 1
             # varargs function
             ex = ex.args[1]
@@ -574,7 +571,7 @@ function signature_names!(sigex::ExLike)
         return arg
     end
     paramname(s::Symbol) = s
-    function paramname(ex::ExLike)
+    function paramname(ex::Expr)
         ex.head == :(<:) && return paramname(ex.args[1])
         throw(ArgumentError(string("expected parameter expression, got ", ex)))
     end
@@ -586,7 +583,7 @@ function signature_names!(sigex::ExLike)
     end
     name = sigex.args[1]
     offset = 1
-    if length(sigex.args) > 1 && isa(sigex.args[2], ExLike) && sigex.args[2].head == :parameters
+    if length(sigex.args) > 1 && isa(sigex.args[2], Expr) && sigex.args[2].head == :parameters
         # keyword arguments
         kwnames = tuple(argname.(sigex.args[2].args)...)
         offset += 1
@@ -617,12 +614,12 @@ function signature_names!(sigex::ExLike)
     return sigex.args[1], tuple(argnames...), kwnames, tuple(parameternames...)
 end
 
-function rename_method!(ex::ExLike, name::Symbol, callerobj)
-    sig = ex.head ∈ (:call, :where) ? ex : get_signature(ex)
-    while isa(sig, ExLike) && sig.head == :where
+function rename_method!(sig::Expr, name::Symbol, callerobj)
+    ex = sig
+    while isa(sig, Expr) && sig.head == :where
         sig = sig.args[1]
     end
-    sig.head == :call || (dump(ex); throw(ArgumentError(string("expected call expression, got ", ex))))
+    sig.head == :call || (dump(sig); throw(ArgumentError(string("expected call expression, got ", sig))))
     sig.args[1] = name
     if callerobj != nothing
         # Call overloading, add an argument
@@ -630,12 +627,17 @@ function rename_method!(ex::ExLike, name::Symbol, callerobj)
     end
     return ex
 end
-rename_method(ex::ExLike, name::Symbol, callerobj) = rename_method!(copy(ex), name, callerobj)
+rename_method(sig::Expr, name::Symbol, callerobj) = rename_method!(copy(sig), name, callerobj)
 
-function pop_annotations(def::ExLike)
-    while Revise.is_trivial_block_wrapper(def) || (
-            def isa ExLike && def.head == :macrocall && Revise.is_poppable_macro(def.args[1]))
+const poppable_macro = (Symbol("@inline"), Symbol("@noinline"), Symbol("@propagate_inbounds"), Symbol("@eval"), Symbol("@pure"))
+is_poppable_macro(ex) = ex ∈ poppable_macro ||
+    (ex isa Expr && ex.head == :. && ex.args[1] == :Base && ex.args[2].value ∈ poppable_macro)
+
+function pop_annotations(def::Expr)
+    def = unwrap(def)
+    while def isa Expr && def.head == :macrocall && is_poppable_macro(def.args[1])
         def = def.args[end]
+        def = unwrap(def)
     end
     def
 end

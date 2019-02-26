@@ -193,7 +193,7 @@ function HeaderREPLs.print_header(io::IO, header::RebugHeader)
                     val = "nothing"
                 end
                 try
-                    Revise.printf_maxsize(printer, s, "  ", name, " = ", val; maxlines=1, maxchars=ds[2]-1)
+                    printf_maxsize(printer, s, "  ", name, " = ", val; maxlines=1, maxchars=ds[2]-1)
                 catch # don't error just because a print method is borked
                     printstyled(s, "  ", name, " errors in its show method"; color=:red)
                 end
