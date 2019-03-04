@@ -143,6 +143,12 @@ function HeaderREPLs.print_header(io::IO, header::InterpretHeader)
     for s in (io, iocount)
         ds = displaysize(io)
         printer(args...) = printstyled(args..., '\n'; color=:light_blue)
+        if !isempty(header.warnmsg)
+            printstyled(s, header.warnmsg, '\n'; color=Base.warn_color())
+        end
+        if !isempty(header.errmsg)
+            printstyled(s, header.errmsg, '\n'; color=Base.error_color())
+        end
         method = frame.code.scope
         printstyled(s, method, '\n'; color=:light_magenta)
         n = length(frame.code.code.slotnames)
@@ -166,5 +172,7 @@ function HeaderREPLs.print_header(io::IO, header::InterpretHeader)
         end
     end
     header.nlines = count_display_lines(iocount, displaysize(io))
+    header.warnmsg = ""
+    header.errmsg = ""
     return nothing
 end

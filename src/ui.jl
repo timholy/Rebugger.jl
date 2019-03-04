@@ -30,9 +30,11 @@ mutable struct InterpretHeader <: AbstractHeader
     current_frame::Union{Nothing,JuliaStackFrame}
     val
     bt
+    warnmsg::String
+    errmsg::String
     nlines::Int   # size of the printed header
 end
-InterpretHeader() = InterpretHeader(nothing, nothing, nothing, 0)
+InterpretHeader() = InterpretHeader(nothing, nothing, nothing, "", "", 0)
 
 struct DummyAST end  # fictive input for the put!/take! evaluation by the InterpretREPL backend
 
@@ -206,6 +208,7 @@ function interpret(s)
             hdr.bt = catch_backtrace()
         end
     else
+        stack = JuliaStackFrame[]
         hdr.current_frame = frame
         deflines = expression_lines(frame.code.scope)
 
@@ -232,6 +235,12 @@ function interpret(s)
                 elseif cmd == 'q'
                     hdr.val = nothing
                     break
+                elseif cmd == '?'
+                    hdr.warnmsg = """
+                    Commands:
+                      space: next line
+                      enter: continue to next breakpoint or completion
+                          q: abort (returns nothing)"""
                 end
             end
         catch err
@@ -328,7 +337,7 @@ const keybindings = Dict{Symbol,String}(
 const modeswitches = Dict{Any,Any}(
     :stacktrace => (s, o...) -> capture_stacktrace(s),
     :stepin => (s, o...) -> (stepin(s); enter_rebug(s)),
-    :interpret => (s, o...) -> (push!(msgs, "i"); enter_interpret(s); interpret(s)),
+    :interpret => (s, o...) -> (enter_interpret(s); interpret(s)),
 )
 
 function get_rebugger_modeswitch_dict()
@@ -355,7 +364,6 @@ function add_keybindings(; override::Bool=false, kwargs...)
             keybindings[action] = keybinding
         end
         if action == :interpret
-            push!(msgs, action)
             LineEdit.add_nested_key!(julia_prompt.keymap_dict, keybinding, modeswitches[action], override=override)
         else
             # We need Any here because "cannot convert REPL.LineEdit.PrefixHistoryPrompt to an object of type REPL.LineEdit.Prompt"
