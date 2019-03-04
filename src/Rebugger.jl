@@ -6,7 +6,7 @@ import REPL.LineEdit, REPL.Terminals
 using REPL.LineEdit: buffer, bufend, content, edit_splice!
 using REPL.LineEdit: transition, terminal, mode, state
 
-using CodeTracking, Revise
+using CodeTracking, Revise, JuliaInterpreter
 using Revise: RelocatableExpr, striplines!, printf_maxsize, whichtt, hasfile, unwrap
 using HeaderREPLs
 
@@ -31,12 +31,14 @@ function rebugrepl_init()
     sleep(0.1) # for extra safety
     # Set up the custom "rebug" REPL
     main_repl = Base.active_repl
+    repl = HeaderREPL(main_repl, InterpretHeader())
+    interface = REPL.setup_interface(repl; extra_repl_keymap=Dict[])
+    interpret_prompt_ref[] = interface.modes[end]
     repl = HeaderREPL(main_repl, RebugHeader())
     interface = REPL.setup_interface(repl; extra_repl_keymap=[get_rebugger_modeswitch_dict(), rebugger_keys])
     rebug_prompt_ref[] = interface.modes[end]
-    add_keybindings(; override=repl_inited, deprecated_keybindings..., keybindings...)
+    add_keybindings(; override=repl_inited, keybindings...)
 end
-
 
 function __init__()
     schedule(Task(rebugrepl_init))

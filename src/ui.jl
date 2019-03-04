@@ -1,5 +1,15 @@
 const rebug_prompt_string = "rebug> "
-const rebug_prompt_ref = Ref{Union{LineEdit.Prompt,Nothing}}(nothing)   # set by __init__
+const rebug_prompt_ref = Ref{Union{LineEdit.Prompt,Nothing}}(nothing)       # set by __init__
+const interpret_prompt_ref = Ref{Union{LineEdit.Prompt,Nothing}}(nothing)   # set by __init__
+
+# For debugging
+function logaction(msg)
+    open("/tmp/rebugger.log", "a") do io
+        println(io, "* ", msg)
+        flush(io)
+    end
+    nothing
+end
 
 dummy() = nothing
 const dummymethod = first(methods(dummy))
@@ -16,10 +26,19 @@ mutable struct RebugHeader <: AbstractHeader
 end
 RebugHeader() = RebugHeader("", "", dummyuuid, dummymethod, 0)
 
-function header(s::LineEdit.MIState)
-    rebug_prompt = rebug_prompt_ref[]
-    rebug_prompt.repl.header
+mutable struct InterpretHeader <: AbstractHeader
+    current_frame::Union{Nothing,JuliaStackFrame}
+    val
+    bt
+    nlines::Int   # size of the printed header
 end
+InterpretHeader() = InterpretHeader(nothing, nothing, nothing, 0)
+
+struct DummyAST end  # fictive input for the put!/take! evaluation by the InterpretREPL backend
+
+header(s::LineEdit.MIState) = header(mode(s).repl)
+header(repl::HeaderREPL) = repl.header
+header(::LineEditREPL) = header(rebug_prompt_ref[].repl)  # default to the Rebug header
 
 # Custom methods
 set_method!(header::RebugHeader, method::Method) = header.current_method = method
@@ -166,7 +185,102 @@ function add_history(s, str::AbstractString)
     REPL.add_history(hp, buf)
 end
 
-### REPL mode
+function interpret(s)
+    hdr = header(s)
+    hdr.bt = nothing
+    term = REPL.terminal(s)
+    cmdstring = LineEdit.content(s)
+    add_history(s, cmdstring)
+    expr = Meta.parse(cmdstring)
+    tupleexpr = JuliaInterpreter.extract_args(Main, expr)
+    callargs = Core.eval(Main, tupleexpr)   # get the elements of the call
+    stack = JuliaStackFrame[]
+    callexpr = Expr(:call, callargs...)
+    frame = JuliaInterpreter.enter_call_expr(callexpr)
+    if frame === nothing
+        local val
+        try
+            hdr.val = Core.eval(Main, callexpr)
+        catch err
+            hdr.val = err
+            hdr.bt = catch_backtrace()
+        end
+    else
+        hdr.current_frame = frame
+        deflines = expression_lines(frame.code.scope)
+
+        print(term, '\n') # to advance beyond the user's input line
+        nlines = 0
+        try
+            while true
+                HeaderREPLs.clear_nlines(term, nlines)
+                print_header(term, hdr)
+                nlines = show_code(term, frame, deflines, nlines)
+                cmd = read(term, Char)
+                if cmd == ' '
+                    pc = JuliaInterpreter.next_line!(stack, frame)
+                    if pc === nothing
+                        val = JuliaInterpreter.get_return(frame)
+                        break
+                    end
+                elseif cmd == '\n' || cmd == '\r'
+                    hdr.val = JuliaInterpreter.finish_and_return!(stack, frame)
+                    isa(hdr.val, JuliaInterpreter.BreakpointRef) || break
+                    frame = pop!(stack)
+                    hdr.current_frame = frame
+                    deflines = expression_lines(frame.code.scope)
+                elseif cmd == 'q'
+                    hdr.val = nothing
+                    break
+                end
+            end
+        catch err
+            hdr.val = err
+            hdr.bt = catch_backtrace()
+        end
+        hdr.current_frame = nothing
+        HeaderREPLs.clear_nlines(term, nlines)
+        HeaderREPLs.clear_header_area(term, hdr)
+    end
+    # Store the result
+    put!(REPL.backend(mode(s).repl).response_channel, (hdr.val, hdr.bt))
+    return :done
+end
+
+function expression_lines(method::Method)
+    def = definition(method)
+    buf = IOBuffer()
+    print(buf, Revise.RelocatableExpr(def)) # strips the line info
+    seek(buf, 0)
+    methlines = readlines(buf)
+    if startswith(methlines[1], ":(")
+        methlines[1] = methlines[1][3:end]
+        methlines[end] = methlines[end][1:end-1]
+    end
+    _, line = whereis(method)
+    startswith(methlines[1], "function") && (line -= 1)
+    return line, methlines
+end
+
+function show_code(term, frame, deflines, nlines)
+    line1, showlines = deflines
+    nd = ndigits(line1 + length(showlines) - 1)
+    line = JuliaInterpreter.linenumber(frame)
+    lineidx = line - line1 + 1
+    nlines = 0
+    for idx = max(1, lineidx-2):min(length(showlines), lineidx+2)
+        linestr = lpad(idx + line1 - 1, nd) * "  " * showlines[idx]
+        if idx == lineidx
+            printstyled(term, linestr, '\n'; bold=true)
+        else
+            print(term, linestr, '\n')
+        end
+        nlines += 1
+    end
+    return nlines
+end
+
+### Header display
 
 function HeaderREPLs.print_header(io::IO, header::RebugHeader)
     if header.nlines != 0
@@ -205,6 +319,44 @@ function HeaderREPLs.print_header(io::IO, header::RebugHeader)
     header.errmsg = ""
     return nothing
 end
+
+function HeaderREPLs.print_header(io::IO, header::InterpretHeader)
+    if header.nlines != 0
+        HeaderREPLs.clear_header_area(io, header)
+    end
+    frame = header.current_frame
+    frame === nothing && return nothing
+    iocount = IOBuffer()  # for counting lines
+    for s in (io, iocount)
+        ds = displaysize(io)
+        printer(args...) = printstyled(args..., '\n'; color=:light_blue)
+        method = frame.code.scope
+        printstyled(s, method, '\n'; color=:light_magenta)
+        n = length(frame.code.code.slotnames)
+        for i = 1:n
+            val = frame.locals[i]
+            if val !== nothing
+                name = frame.code.code.slotnames[i]
+                val = something(val)
+                if name == Symbol("#self#") && (isa(val, Type) || sizeof(val) == 0)
+                    continue
+                end
+                if val === nothing
+                    val = "nothing"
+                end
+                try
+                    printf_maxsize(printer, s, "  ", name, " = ", val; maxlines=1, maxchars=ds[2]-1)
+                catch # don't error just because a print method is borked
+                    printstyled(s, "  ", name, " errors in its show method"; color=:red)
+                end
+            end
+        end
+    end
+    header.nlines = count_display_lines(iocount, displaysize(io))
+    return nothing
+end
+
+### REPL modes
 
 function HeaderREPLs.setup_prompt(repl::HeaderREPL{RebugHeader}, hascolor::Bool)
     julia_prompt = find_prompt(repl.interface, "julia")
@@ -245,31 +397,51 @@ function HeaderREPLs.activate_header(header::RebugHeader, p, s, termbuf, term)
     set_uuid!(header, str)
 end
 
+## Interpret also requires a separate repl
+
+function HeaderREPLs.setup_prompt(repl::HeaderREPL{InterpretHeader}, hascolor::Bool)
+    julia_prompt = find_prompt(repl.interface, "julia")
+
+    prompt = REPL.LineEdit.Prompt(
+        "interpret> ";   # should never be shown
+        prompt_prefix = hascolor ? repl.prompt_color : "",
+        prompt_suffix = hascolor ?
+            (repl.envcolors ? Base.input_color : repl.input_color) : "",
+        complete = julia_prompt.complete,
+        on_enter = REPL.return_callback)
+
+    prompt.on_done = HeaderREPLs.respond(repl, julia_prompt) do str
+        return DummyAST()
+    end
+    return prompt, :rebug
+end
+
+function HeaderREPLs.append_keymaps!(keymaps, repl::HeaderREPL{InterpretHeader})
+    # No keymaps
+    return keymaps
+end
+
+function HeaderREPLs.activate_header(header::InterpretHeader, p, s, termbuf, term)
+end
+
+function Base.put!(c::Channel, input::Tuple{DummyAST,Int})
+    return nothing
+end
+
 const keybindings = Dict{Symbol,String}(
     :stacktrace => "\es",                        # Alt-s ("[s]tacktrace")
     :stepin => "\ee",                            # Alt-e ("[e]nter")
-)
-const deprecated_keybindings = Dict{Symbol,Vector{String}}(
-    :deprecated_stacktrace => ["\e[15~"],        # F5
-    :deprecated_stepin => ["\e\eOM", "\e[23~"],  # Alt-Shift-Enter, F11
+    :interpret => "\ei",                         # Alt-i ("[i]nterpret")
 )
 
 const modeswitches = Dict{Any,Any}(
     :stacktrace => (s, o...) -> capture_stacktrace(s),
     :stepin => (s, o...) -> (stepin(s); enter_rebug(s)),
-    :deprecated_stacktrace => (s, o...) -> (rebug_prompt_ref[].repl.header.warnmsg="stacktrace is now Alt-s (see docs for customization options)"; capture_stacktrace(s)),
-    :deprecated_stepin => (s, o...) -> (stepin(s); rebug_prompt_ref[].repl.header.warnmsg="stepin is now Alt-e (see docs for customization options)"; enter_rebug(s)),
+    :interpret => (s, o...) -> (push!(msgs, "i"); enter_interpret(s); interpret(s)),
 )
 
 function get_rebugger_modeswitch_dict()
     rebugger_modeswitch = Dict()
-    # Process the deprecated bindings first; that way, if the user customizes it back
-    # to one of the deprecated choices, it will override without issuing the warning.
-    for (action, list) in deprecated_keybindings
-        for keybinding in list
-            rebugger_modeswitch[keybinding] = modeswitches[action]
-        end
-    end
     for (action, keybinding) in keybindings
         rebugger_modeswitch[keybinding] = modeswitches[action]
     end
@@ -282,7 +454,7 @@ function add_keybindings(; override::Bool=false, kwargs...)
     julia_prompt = find_prompt(main_repl.interface, "julia")
     rebug_prompt = find_prompt(main_repl.interface, "rebug")
     for (action, keybinding) in kwargs
-        if !(action in keys(keybindings)) && !(action in keys(deprecated_keybindings))
+        if !(action in keys(keybindings))
             error("$action is not a supported action.")
         end
         if !(keybinding isa Union{String,Vector{String}})
@@ -291,16 +463,21 @@ function add_keybindings(; override::Bool=false, kwargs...)
         if haskey(keybindings, action)
             keybindings[action] = keybinding
         end
-        # We need Any here because "cannot convert REPL.LineEdit.PrefixHistoryPrompt to an object of type REPL.LineEdit.Prompt"
-        prompts = Any[julia_prompt, rebug_prompt]
-        if action ∈ (:stacktrace, :deprecated_stacktrace) push!(prompts, history_prompt) end
-        for prompt in prompts
-            if keybinding isa Vector
-                for kb in keybinding
-                    LineEdit.add_nested_key!(prompt.keymap_dict, kb, modeswitches[action], override=override)
+        if action == :interpret
+            push!(msgs, action)
+            LineEdit.add_nested_key!(julia_prompt.keymap_dict, keybinding, modeswitches[action], override=override)
+        else
+            # We need Any here because "cannot convert REPL.LineEdit.PrefixHistoryPrompt to an object of type REPL.LineEdit.Prompt"
+            prompts = Any[julia_prompt, rebug_prompt]
+            if action == :stacktrace push!(prompts, history_prompt) end
+            for prompt in prompts
+                if keybinding isa Vector
+                    for kb in keybinding
+                        LineEdit.add_nested_key!(prompt.keymap_dict, kb, modeswitches[action], override=override)
+                    end
+                else
+                    LineEdit.add_nested_key!(prompt.keymap_dict, keybinding, modeswitches[action], override=override)
                 end
-            else
-                LineEdit.add_nested_key!(prompt.keymap_dict, keybinding, modeswitches[action], override=override)
             end
         end
     end
@@ -317,6 +494,7 @@ const rebugger_keys = Dict{Any,Any}(
 
 
 enter_rebug(s) = mode_switch(s, rebug_prompt_ref[])
+enter_interpret(s) = mode_switch(s, interpret_prompt_ref[])
 
 function mode_switch(s, other_prompt)
     buf = copy(LineEdit.buffer(s))
