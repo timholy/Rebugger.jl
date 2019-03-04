@@ -196,7 +196,6 @@ function interpret(s)
     expr = Meta.parse(cmdstring)
     tupleexpr = JuliaInterpreter.extract_args(Main, expr)
     callargs = Core.eval(Main, tupleexpr)   # get the elements of the call
-    stack = JuliaStackFrame[]
     callexpr = Expr(:call, callargs...)
     frame = JuliaInterpreter.enter_call_expr(callexpr)
     if frame === nothing
@@ -223,15 +222,15 @@ function interpret(s)
                 if cmd == ' '
                     pc = JuliaInterpreter.next_line!(stack, frame)
                     if pc === nothing
-                        val = JuliaInterpreter.get_return(frame)
-                        break
+                        hdr.val = JuliaInterpreter.get_return(frame)
+                        isempty(stack) && break
+                        frame, deflines = reset_frame!(stack, hdr, true)
                     end
                 elseif cmd == '\n' || cmd == '\r'
-                    hdr.val = JuliaInterpreter.finish_and_return!(stack, frame)
+                    push!(stack, frame)
+                    hdr.val = JuliaInterpreter.finish_stack!(stack)
                     isa(hdr.val, JuliaInterpreter.BreakpointRef) || break
-                    frame = pop!(stack)
-                    hdr.current_frame = frame
-                    deflines = expression_lines(frame.code.scope)
+                    frame, deflines = reset_frame!(stack, hdr, false)
                 elseif cmd == 'q'
                     hdr.val = nothing
                     break
@@ -240,7 +239,48 @@ function interpret(s)
                     Commands:
                       space: next line
                       enter: continue to next breakpoint or completion
+                          →: step in to next call
+                          ←: finish frame and return to caller
                           q: abort (returns nothing)"""
+                elseif cmd == '\e'   # escape codes
+                    nxtcmd = read(term, Char)
+                    cmd *= nxtcmd
+                    while nxtcmd == '['
+                        nxtcmd = read(term, Char)
+                        cmd *= nxtcmd
+                    end
+                    if cmd == "\e[C"  # right arrow
+                        ret = JuliaInterpreter.maybe_next_call!(stack, frame)
+                        if ret === nothing
+                            hdr.val = JuliaInterpreter.get_return(frame)
+                            isempty(stack) && break
+                            frame, deflines = reset_frame!(stack, hdr, true)
+                        elseif isa(ret, JuliaInterpreter.BreakpointRef)
+                            frame, deflines = reset_frame!(stack, hdr, false)
+                        else
+                            pc = ret
+                            stmt = JuliaInterpreter.pc_expr(frame, pc)
+                            callstmt = stmt
+                            if isexpr(callstmt, :(=))
+                                callstmt = callstmt.args[2]
+                            end
+                            isexpr(callstmt, :call) || continue
+                            ret = JuliaInterpreter.evaluate_call!(stack, frame, callstmt, pc; exec! = dummy_breakpoint)
+                            if isa(ret, JuliaInterpreter.BreakpointRef)
+                                frame, deflines = reset_frame!(stack, hdr, false)
+                            else
+                                # The call returned in Compiled mode
+                                maybe_assign!(frame, stmt, pc, ret)
+                                frame.pc[] += 1
+                            end
+                        end
+                    elseif cmd == "\e[D"  # left arrow
+                        hdr.val = JuliaInterpreter.finish_and_return!(stack, frame)
+                        isempty(stack) && break
+                        frame, deflines = reset_frame!(stack, hdr, true)
+                    end
+                else
+                    push!(msgs, cmd)
                 end
             end
         catch err
@@ -254,6 +294,43 @@ function interpret(s)
     # Store the result
     put!(REPL.backend(mode(s).repl).response_channel, (hdr.val, hdr.bt))
     return :done
+end
+
+function reset_frame!(stack, hdr, pcdone)  # pcdone is true if you're finishing
+    local frame
+    while true
+        frame = pop!(stack)
+        hdr.current_frame = frame
+        pcdone || break
+        # We might have to perform the assignment
+        pc = frame.pc[]
+        stmt = JuliaInterpreter.pc_expr(frame, pc)
+        maybe_assign!(frame, stmt, pc, hdr.val)
+        if !isexpr(stmt, :return)
+            frame.pc[] = pc + 1
+            break
+        end
+        hdr.val = JuliaInterpreter.get_return(frame, pc)
+    end
+    deflines = expression_lines(frame.code.scope)
+    return frame, deflines
+end
+
+function maybe_assign!(frame, stmt, pc, val)
+    if isexpr(stmt, :(=))
+        lhs = stmt.args[1]
+        JuliaInterpreter.do_assignment!(frame, lhs, val)
+    elseif JuliaInterpreter.isassign(frame, pc)
+        lhs = JuliaInterpreter.getlhs(pc)
+        JuliaInterpreter.do_assignment!(frame, lhs, val)
+    end
+    return nothing
+end
+maybe_assign!(frame, pc, val) = maybe_assign!(frame, JuliaInterpreter.pc_expr(frame, pc), pc, val)
+
+function dummy_breakpoint(stack, frame)
+    push!(stack, frame)
+    return JuliaInterpreter.BreakpointRef(frame.code, 0)
 end
 
 ### REPL modes

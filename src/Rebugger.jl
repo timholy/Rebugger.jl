@@ -9,6 +9,7 @@ using REPL.LineEdit: transition, terminal, mode, state
 using CodeTracking, Revise, JuliaInterpreter
 using Revise: RelocatableExpr, striplines!, printf_maxsize, whichtt, hasfile, unwrap
 using HeaderREPLs
+using Base.Meta: isexpr
 
 const msgs = []  # for debugging. The REPL-magic can sometimes overprint error messages
 
