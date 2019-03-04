@@ -14,6 +14,7 @@ const msgs = []  # for debugging. The REPL-magic can sometimes overprint error m
 
 include("debug.jl")
 include("ui.jl")
+include("printing.jl")
 include("deepcopy.jl")
 
 # Set up keys that enter rebug mode from the regular Julia REPL
