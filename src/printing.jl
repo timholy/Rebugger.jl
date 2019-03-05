@@ -5,7 +5,8 @@ struct LineNumberIO <: IO
     file::Symbol
 end
 
-LineNumberIO(io::IO, file, line) = LineNumberIO(io, Int[line], file)
+LineNumberIO(io::IO, line, file::Symbol) = LineNumberIO(io, Int[line], file)
+LineNumberIO(io::IO, line, file::AbstractString) = LineNumberIO(io, line, Symbol(file))
 
 function Base.show_linenumber(io::LineNumberIO, line, file)
     if file == io.file
@@ -28,8 +29,10 @@ Base.write(io::LineNumberIO, x::UInt8) = write(io.io, x)
 const matches_end = r"\s*end"
 function expression_lines(method::Method)
     def = definition(method)
+    lnn = findline(def, identity)
+    mfile = lnn === nothing ? method.file : lnn.file
     buf = IOBuffer()
-    io = LineNumberIO(buf, method.file, method.line) # deliberately using the in-method numbering
+    io = LineNumberIO(buf, method.line, mfile) # deliberately using the in-method numbering
     print(io, def)
     seek(buf, 0)
     methlines = readlines(buf)
@@ -58,6 +61,17 @@ function expression_lines(method::Method)
     end
     _, line1 = whereis(method)
     return linenos[keep], line1, methlines[keep]
+end
+
+function findline(ex, order)
+    for a in order(ex.args)
+        a isa LineNumberNode && return a
+        if a isa Expr
+            ln = findline(a, order)
+            ln !== nothing && return ln
+        end
+    end
+    return nothing
 end
 
 function show_code(term, frame, deflines, nlines)
