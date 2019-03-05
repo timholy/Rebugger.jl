@@ -29,6 +29,9 @@ Base.write(io::LineNumberIO, x::UInt8) = write(io.io, x)
 const linefree = r"\s*(end|else|catch)"
 function expression_lines(method::Method)
     def = definition(method)
+    if def === nothing
+        return [1], 0, ["<code not available>"]
+    end
     lnn = findline(def, identity)
     mfile = lnn === nothing ? method.file : lnn.file
     buf = IOBuffer()
@@ -64,6 +67,7 @@ function expression_lines(method::Method)
 end
 
 function findline(ex, order)
+    isa(ex, Expr) || return nothing
     for a in order(ex.args)
         a isa LineNumberNode && return a
         if a isa Expr
