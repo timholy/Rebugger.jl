@@ -27,14 +27,16 @@ end
 RebugHeader() = RebugHeader("", "", dummyuuid, dummymethod, 0)
 
 mutable struct InterpretHeader <: AbstractHeader
-    current_frame::Union{Nothing,JuliaStackFrame}
+    stack::Vector{JuliaStackFrame}
+    frame::Union{Nothing,JuliaStackFrame}
+    leveloffset::Int
     val
     bt
     warnmsg::String
     errmsg::String
     nlines::Int   # size of the printed header
 end
-InterpretHeader() = InterpretHeader(nothing, nothing, nothing, "", "", 0)
+InterpretHeader() = InterpretHeader(JuliaStackFrame[], nothing, 0, nothing, nothing, "", "", 0)
 
 struct DummyAST end  # fictive input for the put!/take! evaluation by the InterpretREPL backend
 
@@ -207,8 +209,8 @@ function interpret(s)
             hdr.bt = catch_backtrace()
         end
     else
-        stack = JuliaStackFrame[]
-        hdr.current_frame = frame
+        hdr.stack = JuliaStackFrame[]
+        hdr.frame = frame
         deflines = expression_lines(frame.code.scope)
 
         print(term, '\n') # to advance beyond the user's input line
@@ -220,17 +222,17 @@ function interpret(s)
                 nlines = show_code(term, frame, deflines, nlines)
                 cmd = read(term, Char)
                 if cmd == ' '
-                    pc = JuliaInterpreter.next_line!(stack, frame)
+                    pc = JuliaInterpreter.next_line!(hdr.stack, frame)
                     if pc === nothing
                         hdr.val = JuliaInterpreter.get_return(frame)
-                        isempty(stack) && break
-                        frame, deflines = reset_frame!(stack, hdr, true)
+                        isempty(hdr.stack) && break
+                        frame, deflines = reset_frame!(hdr, true)
                     end
                 elseif cmd == '\n' || cmd == '\r'
-                    push!(stack, frame)
-                    hdr.val = JuliaInterpreter.finish_stack!(stack)
+                    push!(hdr.stack, frame)
+                    hdr.val = JuliaInterpreter.finish_stack!(hdr.stack)
                     isa(hdr.val, JuliaInterpreter.BreakpointRef) || break
-                    frame, deflines = reset_frame!(stack, hdr, false)
+                    frame, deflines = reset_frame!(hdr, false)
                 elseif cmd == 'q'
                     hdr.val = nothing
                     break
@@ -250,13 +252,13 @@ function interpret(s)
                         cmd *= nxtcmd
                     end
                     if cmd == "\e[C"  # right arrow
-                        ret = JuliaInterpreter.maybe_next_call!(stack, frame)
+                        ret = JuliaInterpreter.maybe_next_call!(hdr.stack, frame)
                         if ret === nothing
                             hdr.val = JuliaInterpreter.get_return(frame)
-                            isempty(stack) && break
-                            frame, deflines = reset_frame!(stack, hdr, true)
+                            isempty(hdr.stack) && break
+                            frame, deflines = reset_frame!(hdr, true)
                         elseif isa(ret, JuliaInterpreter.BreakpointRef)
-                            frame, deflines = reset_frame!(stack, hdr, false)
+                            frame, deflines = reset_frame!(hdr, false)
                         else
                             pc = ret
                             stmt = JuliaInterpreter.pc_expr(frame, pc)
@@ -265,9 +267,9 @@ function interpret(s)
                                 callstmt = callstmt.args[2]
                             end
                             isexpr(callstmt, :call) || continue
-                            ret = JuliaInterpreter.evaluate_call!(stack, frame, callstmt, pc; exec! = dummy_breakpoint)
+                            ret = JuliaInterpreter.evaluate_call!(hdr.stack, frame, callstmt, pc; exec! = dummy_breakpoint)
                             if isa(ret, JuliaInterpreter.BreakpointRef)
-                                frame, deflines = reset_frame!(stack, hdr, false)
+                                frame, deflines = reset_frame!(hdr, false)
                             else
                                 # The call returned in Compiled mode
                                 maybe_assign!(frame, stmt, pc, ret)
@@ -275,9 +277,9 @@ function interpret(s)
                             end
                         end
                     elseif cmd == "\e[D"  # left arrow
-                        hdr.val = JuliaInterpreter.finish_and_return!(stack, frame)
-                        isempty(stack) && break
-                        frame, deflines = reset_frame!(stack, hdr, true)
+                        hdr.val = JuliaInterpreter.finish_and_return!(hdr.stack, frame)
+                        isempty(hdr.stack) && break
+                        frame, deflines = reset_frame!(hdr, true)
                     end
                 else
                     push!(msgs, cmd)
@@ -287,7 +289,7 @@ function interpret(s)
             hdr.val = err
             hdr.bt = catch_backtrace()
         end
-        hdr.current_frame = nothing
+        hdr.frame = nothing
         HeaderREPLs.clear_nlines(term, nlines)
         HeaderREPLs.clear_header_area(term, hdr)
     end
@@ -296,11 +298,11 @@ function interpret(s)
     return :done
 end
 
-function reset_frame!(stack, hdr, pcdone)  # pcdone is true if you're finishing
+function reset_frame!(hdr, pcdone)  # pcdone is true if you're finishing
     local frame
     while true
-        frame = pop!(stack)
-        hdr.current_frame = frame
+        frame = pop!(hdr.stack)
+        hdr.frame = frame
         pcdone || break
         # We might have to perform the assignment
         pc = frame.pc[]

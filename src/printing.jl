@@ -137,7 +137,8 @@ function HeaderREPLs.print_header(io::IO, header::InterpretHeader)
     if header.nlines != 0
         HeaderREPLs.clear_header_area(io, header)
     end
-    frame = header.current_frame
+    depth = length(header.stack) + 1 - header.leveloffset
+    frame = header.leveloffset == 0 ? header.frame : header.stack[depth]
     frame === nothing && return nothing
     iocount = IOBuffer()  # for counting lines
     for s in (io, iocount)
@@ -149,8 +150,17 @@ function HeaderREPLs.print_header(io::IO, header::InterpretHeader)
         if !isempty(header.errmsg)
             printstyled(s, header.errmsg, '\n'; color=Base.error_color())
         end
+        indent = ""
+        for (i, f) in enumerate(header.stack)
+            if i == depth
+                printstyled(s, indent, f.code.scope, '\n'; color=:light_magenta, bold=true)
+            else
+                printstyled(s, indent, f.code.scope, '\n'; color=:light_magenta)
+            end
+            indent *= ' '
+        end
         method = frame.code.scope
-        printstyled(s, method, '\n'; color=:light_magenta)
+        printstyled(s, indent, method, '\n'; color=:light_magenta, bold = header.leveloffset==0)
         n = length(frame.code.code.slotnames)
         for i = 1:n
             val = frame.locals[i]
