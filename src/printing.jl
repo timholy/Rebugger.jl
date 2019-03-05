@@ -26,7 +26,7 @@ Base.show_linenumber(io::LineNumberIO, line) = nothing
 
 Base.write(io::LineNumberIO, x::UInt8) = write(io.io, x)
 
-const matches_end = r"\s*end"
+const linefree = r"\s*(end|else|catch)"
 function expression_lines(method::Method)
     def = definition(method)
     lnn = findline(def, identity)
@@ -48,7 +48,7 @@ function expression_lines(method::Method)
     startswith(methlines[1], "function") && (linenos[1] -= 1)
     # end statements need some correction
     for i = 2:length(methlines)
-        if match(matches_end, methlines[i]) !== nothing
+        if match(linefree, methlines[i]) !== nothing
             linenos[i] = linenos[i-1] + 1
         end
     end
