@@ -219,9 +219,15 @@ function interpret(s)
             while true
                 HeaderREPLs.clear_nlines(term, nlines)
                 print_header(term, hdr)
-                nlines = show_code(term, frame, deflines, nlines)
+                if hdr.leveloffset == 0
+                    nlines = show_code(term, frame, deflines, nlines)
+                else
+                    f = hdr.stack[end + 1 - hdr.leveloffset]
+                    nlines = show_code(term, f, expression_lines(f.code.scope), nlines)
+                end
                 cmd = read(term, Char)
                 if cmd == ' '
+                    hdr.leveloffset = 0
                     pc = JuliaInterpreter.next_line!(hdr.stack, frame)
                     if pc === nothing
                         hdr.val = JuliaInterpreter.get_return(frame)
@@ -229,6 +235,7 @@ function interpret(s)
                         frame, deflines = reset_frame!(hdr, true)
                     end
                 elseif cmd == '\n' || cmd == '\r'
+                    hdr.leveloffset = 0
                     push!(hdr.stack, frame)
                     hdr.val = JuliaInterpreter.finish_stack!(hdr.stack)
                     isa(hdr.val, JuliaInterpreter.BreakpointRef) || break
@@ -243,15 +250,19 @@ function interpret(s)
                       enter: continue to next breakpoint or completion
                           →: step in to next call
                           ←: finish frame and return to caller
+                          ↑: display the caller frame
+                          ↓: display the callee frame
                           q: abort (returns nothing)"""
                 elseif cmd == '\e'   # escape codes
                     nxtcmd = read(term, Char)
+                    nxtcmd == "O" && (nxtcmd = '[')  # normalize escape code
                     cmd *= nxtcmd
                     while nxtcmd == '['
                         nxtcmd = read(term, Char)
                         cmd *= nxtcmd
                     end
                     if cmd == "\e[C"  # right arrow
+                        hdr.leveloffset = 0
                         ret = JuliaInterpreter.maybe_next_call!(hdr.stack, frame)
                         if ret === nothing
                             hdr.val = JuliaInterpreter.get_return(frame)
@@ -277,9 +288,14 @@ function interpret(s)
                             end
                         end
                     elseif cmd == "\e[D"  # left arrow
+                        hdr.leveloffset = 0
                         hdr.val = JuliaInterpreter.finish_and_return!(hdr.stack, frame)
                         isempty(hdr.stack) && break
                         frame, deflines = reset_frame!(hdr, true)
+                    elseif cmd == "\e[A"  # up arrow
+                        hdr.leveloffset = min(length(hdr.stack), hdr.leveloffset + 1)
+                    elseif cmd == "\e[B"  # down arrow
+                        hdr.leveloffset = max(0, hdr.leveloffset - 1)
                     end
                 else
                     push!(msgs, cmd)
