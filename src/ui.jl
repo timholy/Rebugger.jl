@@ -194,6 +194,7 @@ function interpret(s)
     hdr.bt = nothing
     term = REPL.terminal(s)
     cmdstring = LineEdit.content(s)
+    isempty(cmdstring) && return :done
     add_history(s, cmdstring)
     expr = Meta.parse(cmdstring)
     tupleexpr = JuliaInterpreter.extract_args(Main, expr)
