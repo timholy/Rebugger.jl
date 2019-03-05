@@ -226,7 +226,21 @@ function interpret(s)
                     nlines = show_code(term, f, expression_lines(f.code.scope), nlines)
                 end
                 cmd = read(term, Char)
-                if cmd == ' '
+                if cmd == '?'
+                    hdr.warnmsg = """
+                    Commands:
+                      space: next line
+                      enter: continue to next breakpoint or completion
+                          →: step in to next call
+                          ←: finish frame and return to caller
+                          ↑: display the caller frame
+                          ↓: display the callee frame
+                          b: insert breakpoint at current line
+                          r: remove breakpoint at current line
+                          d: disable breakpoint at current line
+                          e: enable breakpoint at current line
+                          q: abort (returns nothing)"""
+                elseif cmd == ' '
                     hdr.leveloffset = 0
                     pc = JuliaInterpreter.next_line!(hdr.stack, frame)
                     if pc === nothing
@@ -243,16 +257,6 @@ function interpret(s)
                 elseif cmd == 'q'
                     hdr.val = nothing
                     break
-                elseif cmd == '?'
-                    hdr.warnmsg = """
-                    Commands:
-                      space: next line
-                      enter: continue to next breakpoint or completion
-                          →: step in to next call
-                          ←: finish frame and return to caller
-                          ↑: display the caller frame
-                          ↓: display the callee frame
-                          q: abort (returns nothing)"""
                 elseif cmd == '\e'   # escape codes
                     nxtcmd = read(term, Char)
                     nxtcmd == "O" && (nxtcmd = '[')  # normalize escape code
@@ -297,6 +301,17 @@ function interpret(s)
                     elseif cmd == "\e[B"  # down arrow
                         hdr.leveloffset = max(0, hdr.leveloffset - 1)
                     end
+                elseif cmd == 'b'
+                    Breakpoints.breakpoint!(frame.code, frame.pc[])
+                elseif cmd == 'r'
+                    thisline = JuliaInterpreter.linenumber(frame)
+                    breakpoint_action(remove, frame, thisline)
+                elseif cmd == 'd'
+                    thisline = JuliaInterpreter.linenumber(frame)
+                    breakpoint_action(disable, frame, thisline)
+                elseif cmd == 'e'
+                    thisline = JuliaInterpreter.linenumber(frame)
+                    breakpoint_action(enable, frame, thisline)
                 else
                     push!(msgs, cmd)
                 end
@@ -349,6 +364,28 @@ maybe_assign!(frame, pc, val) = maybe_assign!(frame, JuliaInterpreter.pc_expr(fr
 function dummy_breakpoint(stack, frame)
     push!(stack, frame)
     return JuliaInterpreter.BreakpointRef(frame.code, 0)
+end
+
+# Find the range of statement indexes that preceed a line
+# `thisline` should be in "compiled" numbering
+function coderange(framecode, thisline)
+    codeloc = searchsortedfirst(framecode.code.linetable, LineNumberNode(thisline, ""); by=x->x.line)
+    if codeloc == 1
+        return 1:1
+    end
+    idxline = searchsortedfirst(framecode.code.codelocs, codeloc)
+    idxprev = searchsortedfirst(framecode.code.codelocs, codeloc-1) + 1
+    return idxprev:idxline
+end
+
+function breakpoint_action(f, frame, thisline)
+    breakpoints = frame.code.breakpoints
+    for i in coderange(frame.code, thisline)
+        if isassigned(breakpoints, i) && (breakpoints[i].isactive || breakpoints[i].condition != JuliaInterpreter.falsecondition)
+            f(Breakpoints.BreakpointRef(frame.code, i))
+        end
+    end
+    return nothing
 end
 
 ### REPL modes

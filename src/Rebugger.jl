@@ -11,6 +11,9 @@ using Revise: RelocatableExpr, striplines!, printf_maxsize, whichtt, hasfile, un
 using HeaderREPLs
 using Base.Meta: isexpr
 
+# Reexports
+export @breakpoint, breakpoint, enable, disable, remove
+
 const msgs = []  # for debugging. The REPL-magic can sometimes overprint error messages
 
 include("debug.jl")

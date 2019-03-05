@@ -72,18 +72,9 @@ function show_code(term, frame, deflines, nlines)
     iochar = IOBuffer()
     for idx in idxrange
         thisline, codestr = linenos[idx], showlines[idx]
-        linestr = lpad(thisline + offset, nd) * "  " * codestr
-        # Limit it to a single line
-        nchars = 0
-        for c in linestr
-            if nchars == width-2
-                print(iochar, '…')
-                break
-            else
-                print(iochar, c)
-            end
-        end
-        linestr = String(take!(iochar))
+        bchar = breakpoint_style(frame.code, thisline)
+        linestr = bchar * lpad(thisline + offset, nd) * "  " * codestr
+        linestr = linetrunc(iochar, linestr, width)
         if idx == lineidx
             printstyled(term, linestr, '\n'; bold=true)
         else
@@ -91,6 +82,45 @@ function show_code(term, frame, deflines, nlines)
         end
     end
     return length(idxrange)
+end
+
+# Limit output to a single line
+function linetrunc(iochar::IO, linestr, width)
+    nchars = 0
+    for c in linestr
+        if nchars == width-2
+            print(iochar, '…')
+            break
+        else
+            print(iochar, c)
+        end
+    end
+    return String(take!(iochar))
+end
+linetrunc(linestr, width) = linetrunc(IOBuffer(), linestr, width)
+
+function breakpoint_style(framecode, thisline)
+    rng = coderange(framecode, thisline)
+    style =' '
+    breakpoints = framecode.breakpoints
+    for i in rng
+        if isassigned(breakpoints, i)
+            bps = breakpoints[i]
+            if !bps.isactive
+                if bps.condition === JuliaInterpreter.falsecondition  # removed
+                else
+                    style = style == ' ' ? 'd' : 'm'   # disabled
+                end
+            else
+                if bps.condition === JuliaInterpreter.truecondition
+                    style = style == ' ' ? 'b' : 'm'   # unconditional
+                else
+                    style = style == ' ' ? 'c' : 'm'   # conditional
+                end
+            end
+        end
+    end
+    return style
 end
 
 ### Header display
