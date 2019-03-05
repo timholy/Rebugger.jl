@@ -236,6 +236,7 @@ function interpret(s)
                           ↑: display the caller frame
                           ↓: display the callee frame
                           b: insert breakpoint at current line
+                          c: insert conditional breakpoint at current line
                           r: remove breakpoint at current line
                           d: disable breakpoint at current line
                           e: enable breakpoint at current line
@@ -303,6 +304,17 @@ function interpret(s)
                     end
                 elseif cmd == 'b'
                     Breakpoints.breakpoint!(frame.code, frame.pc[])
+                elseif cmd == 'c'
+                    print(term, "enter condition: ")
+                    condstr = ""
+                    c = read(term, Char)
+                    while c != '\n' && c != '\r'
+                        print(term, c)
+                        condstr *= c
+                        c = read(term, Char)
+                    end
+                    condex = Base.parse_input_line(condstr; filename="condition")
+                    Breakpoints.breakpoint!(frame.code, frame.pc[], (JuliaInterpreter.moduleof(frame), condex))
                 elseif cmd == 'r'
                     thisline = JuliaInterpreter.linenumber(frame)
                     breakpoint_action(remove, frame, thisline)
