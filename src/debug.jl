@@ -60,23 +60,24 @@ Compute the range of lines occupied by `expr`.
 Returns `nothing` if no line statements can be found.
 """
 function linerange(def::Expr)
-    start, haslinestart = findline(def, identity)
-    stop, haslinestop  = findline(def, Iterators.reverse)
-    (haslinestart & haslinestop) && return start:stop
+    start = findline(def)
+    stop  = findline(def, Iterators.reverse)
+    start !== nothing && stop !== nothing && return start.line:stop.line
     return nothing
 end
 
 function findline(ex, order)
-    ex.head == :line && return ex.args[1], true
+    isa(ex, Expr) || return nothing
     for a in order(ex.args)
-        a isa LineNumberNode && return a.line, true
+        a isa LineNumberNode && return a
         if a isa Expr
-            ln, hasline = findline(a, order)
-            hasline && return ln, true
+            ln = findline(a, order)
+            ln !== nothing && return ln
         end
     end
-    return 0, false
+    return nothing
 end
+findline(ex) = findline(ex, identity)
 
 """
     usrtrace, defs = pregenerated_stacktrace(trace, topname=:capture_stacktrace)

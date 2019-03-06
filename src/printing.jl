@@ -1,21 +1,20 @@
 # A type for keeping track of the current line number when printing Exprs
 struct LineNumberIO <: IO
     io::IO
-    linenos::Vector{Int}
+    linenos::Vector{Union{Missing,Int}}
     file::Symbol
 end
 
-LineNumberIO(io::IO, line, file::Symbol) = LineNumberIO(io, Int[line], file)
-LineNumberIO(io::IO, line, file::AbstractString) = LineNumberIO(io, line, Symbol(file))
+LineNumberIO(io::IO, line::Integer, file::Symbol) = LineNumberIO(io, Union{Missing,Int}[line], file)
+LineNumberIO(io::IO, line::Integer, file::AbstractString) = LineNumberIO(io, line, Symbol(file))
 
 function Base.show_linenumber(io::LineNumberIO, line, file)
     if file == io.file
         # Count how many newlines we've encountered
         data = io.io.data
         nlines = count(isequal(UInt8('\n')), data) + 1
-        lastline = io.linenos[end]
         while nlines > length(io.linenos)
-            push!(io.linenos, lastline)
+            push!(io.linenos, missing)
         end
         io.linenos[nlines] = line
     end
@@ -26,13 +25,16 @@ Base.show_linenumber(io::LineNumberIO, line) = nothing
 
 Base.write(io::LineNumberIO, x::UInt8) = write(io.io, x)
 
-const linefree = r"\s*(end|else|catch)"
+# const linefree = r"\s*(end|else|catch)"
 function expression_lines(method::Method)
     def = definition(method)
     if def === nothing
-        return [1], 0, ["<code not available>"]
+        return [missing], 0, ["<code not available>"]
     end
-    lnn = findline(def, identity)
+    # We'll use the file in LineNumberNodes to make sure line numbers refer to the "outer"
+    # method (and does not get confused by macros etc). Because of symlinks and non-normalized paths,
+    # it's more reliable to grab the first LNN for the template filename than to use method.file.
+    lnn = findline(def)
     mfile = lnn === nothing ? method.file : lnn.file
     buf = IOBuffer()
     io = LineNumberIO(buf, method.line, mfile) # deliberately using the in-method numbering
@@ -40,42 +42,38 @@ function expression_lines(method::Method)
     seek(buf, 0)
     methlines = readlines(buf)
     linenos = io.linenos
-    lastline = linenos[end]
     while length(linenos) < length(methlines)
-        push!(linenos, lastline)
+        push!(linenos, missing)
     end
     if startswith(methlines[1], ":(")
         methlines[1] = methlines[1][3:end]
         methlines[end] = methlines[end][1:end-1]
     end
     startswith(methlines[1], "function") && (linenos[1] -= 1)
-    # end statements need some correction
-    for i = 2:length(methlines)
-        if match(linefree, methlines[i]) !== nothing
-            linenos[i] = linenos[i-1] + 1
-        end
-    end
-    @assert issorted(linenos)
-    keep = Int[]
+    @assert issorted(skipmissing(linenos))
+    keeplinenos, keepsrc = Union{Missing,Int}[], String[]
     for (i, line) in enumerate(methlines)
         if !all(isspace, line)
-            push!(keep, i)
+            push!(keepsrc, line)
+            ln = linenos[i]
+            if ismissing(ln) && i > 1
+                # Deliberately go back only one entry
+                ln = linenos[i-1]
+            end
+            push!(keeplinenos, ln)
+        end
+    end
+    # Fill in missing lines where possible
+    for i = 2:length(keeplinenos)-1
+        if ismissing(keeplinenos[i])
+            skip2 = keeplinenos[i-1] + 2 == keeplinenos[i+1]
+            if !ismissing(skip2) && skip2
+                keeplinenos[i] = keeplinenos[i-1] + 1
+            end
         end
     end
     _, line1 = whereis(method)
-    return linenos[keep], line1, methlines[keep]
-end
-
-function findline(ex, order)
-    isa(ex, Expr) || return nothing
-    for a in order(ex.args)
-        a isa LineNumberNode && return a
-        if a isa Expr
-            ln = findline(a, order)
-            ln !== nothing && return ln
-        end
-    end
-    return nothing
+    return keeplinenos, line1, keepsrc
 end
 
 function show_code(term, frame, deflines, nlines)
@@ -83,15 +81,16 @@ function show_code(term, frame, deflines, nlines)
     method = frame.code.scope
     linenos, line1, showlines = deflines   # linenos is in "compiled" numbering, line1 in "current" numbering
     offset = line1 - method.line           # compiled + offset -> current
-    nd = ndigits(offset + maximum(linenos))
+    nd = ndigits(offset + maximum(skipmissing(linenos)))
     line = JuliaInterpreter.linenumber(frame)    # this is in "compiled" numbering
     lineidx = searchsortedfirst(linenos, line)
     idxrange = max(1, lineidx-2):min(length(linenos), lineidx+2)
     iochar = IOBuffer()
     for idx in idxrange
         thisline, codestr = linenos[idx], showlines[idx]
+        thislinestr = ismissing(thisline) ? " "^nd : lpad(thisline + offset, nd)
         bchar = breakpoint_style(frame.code, thisline)
-        linestr = bchar * lpad(thisline + offset, nd) * "  " * codestr
+        linestr = bchar * thislinestr * "  " * codestr
         linestr = linetrunc(iochar, linestr, width)
         if idx == lineidx
             printstyled(term, linestr, '\n'; bold=true)
@@ -140,6 +139,7 @@ function breakpoint_style(framecode, thisline)
     end
     return style
 end
+breakpoint_style(framecode, ::Missing) = ' '
 
 ### Header display
 

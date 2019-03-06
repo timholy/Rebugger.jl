@@ -8,7 +8,7 @@ using Rebugger, CodeTracking, Test, InteractiveUtils
         def = definition(m)
         linenos, line1, methlines = Rebugger.expression_lines(m)
         @test length(linenos) == length(methlines)
-        @test issorted(linenos)
-        @test linenos[end] >= maximum(CodeTracking.linerange(def))
+        @test issorted(skipmissing(linenos))
+        @test maximum(skipmissing(linenos)) >= maximum(CodeTracking.linerange(def))
     end
 end
