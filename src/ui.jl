@@ -344,19 +344,24 @@ end
 
 function reset_frame!(hdr, pcdone)  # pcdone is true if you're finishing
     local frame
-    while true
+    if pcdone
+        while true
+            frame = pop!(hdr.stack)
+            hdr.frame = frame
+            # We might have to perform the assignment
+            pc = frame.pc[]
+            stmt = JuliaInterpreter.pc_expr(frame, pc)
+            maybe_assign!(frame, stmt, pc, hdr.val)
+            if !isexpr(stmt, :return)
+                frame.pc[] = pc + 1
+                break
+            end
+            hdr.val = JuliaInterpreter.get_return(frame, pc)
+        end
+    else
+        Debugger.maybe_step_through_wrapper!(hdr.stack)
         frame = pop!(hdr.stack)
         hdr.frame = frame
-        pcdone || break
-        # We might have to perform the assignment
-        pc = frame.pc[]
-        stmt = JuliaInterpreter.pc_expr(frame, pc)
-        maybe_assign!(frame, stmt, pc, hdr.val)
-        if !isexpr(stmt, :return)
-            frame.pc[] = pc + 1
-            break
-        end
-        hdr.val = JuliaInterpreter.get_return(frame, pc)
     end
     deflines = expression_lines(frame.code.scope)
     return frame, deflines

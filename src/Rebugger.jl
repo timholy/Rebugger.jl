@@ -10,6 +10,7 @@ using CodeTracking, Revise, JuliaInterpreter
 using Revise: RelocatableExpr, striplines!, printf_maxsize, whichtt, hasfile, unwrap
 using HeaderREPLs
 using Base.Meta: isexpr
+using Debugger
 
 # Reexports
 export @breakpoint, breakpoint, enable, disable, remove
