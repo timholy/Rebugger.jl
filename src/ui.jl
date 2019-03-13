@@ -27,8 +27,7 @@ end
 RebugHeader() = RebugHeader("", "", dummyuuid, dummymethod, 0)
 
 mutable struct InterpretHeader <: AbstractHeader
-    stack::Vector{JuliaStackFrame}
-    frame::Union{Nothing,JuliaStackFrame}
+    frame::Union{Nothing,Frame}
     leveloffset::Int
     val
     bt
@@ -36,7 +35,7 @@ mutable struct InterpretHeader <: AbstractHeader
     errmsg::String
     nlines::Int   # size of the printed header
 end
-InterpretHeader() = InterpretHeader(JuliaStackFrame[], nothing, 0, nothing, nothing, "", "", 0)
+InterpretHeader() = InterpretHeader(nothing, 0, nothing, nothing, "", "", 0)
 
 struct DummyAST end  # fictive input for the put!/take! evaluation by the InterpretREPL backend
 
@@ -210,9 +209,8 @@ function interpret(s)
             hdr.bt = catch_backtrace()
         end
     else
-        hdr.stack = JuliaStackFrame[]
         hdr.frame = frame
-        deflines = expression_lines(frame.code.scope)
+        deflines = expression_lines(JuliaInterpreter.scopeof(frame))
 
         print(term, '\n') # to advance beyond the user's input line
         nlines = 0
@@ -223,8 +221,9 @@ function interpret(s)
                 if hdr.leveloffset == 0
                     nlines = show_code(term, frame, deflines, nlines)
                 else
-                    f = hdr.stack[end + 1 - hdr.leveloffset]
-                    nlines = show_code(term, f, expression_lines(f.code.scope), nlines)
+                    f, Δ = frameoffset(frame, hdr.leveloffset)
+                    hdr.leveloffset -= Δ
+                    nlines = show_code(term, f, expression_lines(JuliaInterpreter.scopeof(f)), nlines)
                 end
                 cmd = read(term, Char)
                 if cmd == '?'
@@ -244,18 +243,20 @@ function interpret(s)
                           q: abort (returns nothing)"""
                 elseif cmd == ' '
                     hdr.leveloffset = 0
-                    pc = JuliaInterpreter.next_line!(hdr.stack, frame)
-                    if pc === nothing
-                        hdr.val = JuliaInterpreter.get_return(frame)
-                        isempty(hdr.stack) && break
-                        frame, deflines = reset_frame!(hdr, true)
+                    ret = debug_command(frame, "n")
+                    if ret === nothing
+                        hdr.val = JuliaInterpreter.get_return(root(frame))
+                        break
                     end
+                    frame, deflines = refresh(frame, ret, deflines)
                 elseif cmd == '\n' || cmd == '\r'
                     hdr.leveloffset = 0
-                    push!(hdr.stack, frame)
-                    hdr.val = JuliaInterpreter.finish_stack!(hdr.stack)
-                    isa(hdr.val, JuliaInterpreter.BreakpointRef) || break
-                    frame, deflines = reset_frame!(hdr, false)
+                    ret = debug_command(frame, "c")
+                    if ret === nothing
+                        hdr.val = JuliaInterpreter.get_return(root(frame))
+                        break
+                    end
+                    frame, deflines = refresh(frame, ret, deflines)
                 elseif cmd == 'q'
                     hdr.val = nothing
                     break
@@ -269,42 +270,23 @@ function interpret(s)
                     end
                     if cmd == "\e[C"  # right arrow
                         hdr.leveloffset = 0
-                        ret = JuliaInterpreter.maybe_next_call!(hdr.stack, frame)
-                        if ret === nothing
-                            hdr.val = JuliaInterpreter.get_return(frame)
-                            isempty(hdr.stack) && break
-                            frame, deflines = reset_frame!(hdr, true)
-                        elseif isa(ret, JuliaInterpreter.BreakpointRef)
-                            frame, deflines = reset_frame!(hdr, false)
-                        else
-                            pc = ret
-                            stmt = JuliaInterpreter.pc_expr(frame, pc)
-                            callstmt = stmt
-                            if isexpr(callstmt, :(=))
-                                callstmt = callstmt.args[2]
-                            end
-                            isexpr(callstmt, :call) || continue
-                            ret = JuliaInterpreter.evaluate_call!(hdr.stack, frame, callstmt, pc; exec! = dummy_breakpoint)
-                            if isa(ret, JuliaInterpreter.BreakpointRef)
-                                frame, deflines = reset_frame!(hdr, false)
-                            else
-                                # The call returned in Compiled mode
-                                maybe_assign!(frame, stmt, pc, ret)
-                                frame.pc[] += 1
-                            end
-                        end
+                        ret = debug_command(frame, "s")
+                        frame, deflines = refresh(frame, ret, deflines)
                     elseif cmd == "\e[D"  # left arrow
                         hdr.leveloffset = 0
-                        hdr.val = JuliaInterpreter.finish_and_return!(hdr.stack, frame)
-                        isempty(hdr.stack) && break
-                        frame, deflines = reset_frame!(hdr, true)
+                        ret = debug_command(frame, "s")
+                        if ret === nothing
+                            hdr.val = JuliaInterpreter.get_return(root(frame))
+                            break
+                        end
+                        frame, deflines = refresh(frame, ret, deflines)
                     elseif cmd == "\e[A"  # up arrow
-                        hdr.leveloffset = min(length(hdr.stack), hdr.leveloffset + 1)
+                        hdr.leveloffset += 1
                     elseif cmd == "\e[B"  # down arrow
                         hdr.leveloffset = max(0, hdr.leveloffset - 1)
                     end
                 elseif cmd == 'b'
-                    Breakpoints.breakpoint!(frame.code, frame.pc[])
+                    JuliaInterpreter.breakpoint!(frame.framecode, frame.pc)
                 elseif cmd == 'c'
                     print(term, "enter condition: ")
                     condstr = ""
@@ -315,7 +297,7 @@ function interpret(s)
                         c = read(term, Char)
                     end
                     condex = Base.parse_input_line(condstr; filename="condition")
-                    Breakpoints.breakpoint!(frame.code, frame.pc[], (JuliaInterpreter.moduleof(frame), condex))
+                    JuliaInterpreter.breakpoint!(frame.framecode, frame.pc, (JuliaInterpreter.moduleof(frame), condex))
                 elseif cmd == 'r'
                     thisline = JuliaInterpreter.linenumber(frame)
                     breakpoint_action(remove, frame, thisline)
@@ -328,79 +310,46 @@ function interpret(s)
                 else
                     push!(msgs, cmd)
                 end
+                hdr.frame = frame
             end
         catch err
             hdr.val = err
             hdr.bt = catch_backtrace()
         end
-        hdr.frame = nothing
-        HeaderREPLs.clear_nlines(term, nlines)
-        HeaderREPLs.clear_header_area(term, hdr)
     end
     # Store the result
     put!(REPL.backend(mode(s).repl).response_channel, (hdr.val, hdr.bt))
     return :done
 end
 
-function reset_frame!(hdr, pcdone)  # pcdone is true if you're finishing
-    local frame
-    if pcdone
-        while true
-            frame = pop!(hdr.stack)
-            hdr.frame = frame
-            # We might have to perform the assignment
-            pc = frame.pc[]
-            stmt = JuliaInterpreter.pc_expr(frame, pc)
-            maybe_assign!(frame, stmt, pc, hdr.val)
-            if !isexpr(stmt, :return)
-                frame.pc[] = pc + 1
-                break
-            end
-            hdr.val = JuliaInterpreter.get_return(frame, pc)
-        end
-    else
-        Debugger.maybe_step_through_wrapper!(hdr.stack)
-        frame = pop!(hdr.stack)
-        hdr.frame = frame
+function refresh(frame, ret, deflines)
+    @assert ret !== nothing
+    cframe, _ = ret
+    if cframe === frame
+        return frame, deflines
     end
-    deflines = expression_lines(frame.code.scope)
-    return frame, deflines
-end
-
-function maybe_assign!(frame, stmt, pc, val)
-    if isexpr(stmt, :(=))
-        lhs = stmt.args[1]
-        JuliaInterpreter.do_assignment!(frame, lhs, val)
-    elseif JuliaInterpreter.isassign(frame, pc)
-        lhs = JuliaInterpreter.getlhs(pc)
-        JuliaInterpreter.do_assignment!(frame, lhs, val)
-    end
-    return nothing
-end
-maybe_assign!(frame, pc, val) = maybe_assign!(frame, JuliaInterpreter.pc_expr(frame, pc), pc, val)
-
-function dummy_breakpoint(stack, frame)
-    push!(stack, frame)
-    return JuliaInterpreter.BreakpointRef(frame.code, 0)
+    return cframe, expression_lines(JuliaInterpreter.scopeof(cframe))
 end
 
 # Find the range of statement indexes that preceed a line
 # `thisline` should be in "compiled" numbering
-function coderange(framecode, thisline)
-    codeloc = searchsortedfirst(framecode.code.linetable, LineNumberNode(thisline, ""); by=x->x.line)
+function coderange(src::CodeInfo, thisline)
+    codeloc = searchsortedfirst(src.linetable, LineNumberNode(thisline, ""); by=x->x.line)
     if codeloc == 1
         return 1:1
     end
-    idxline = searchsortedfirst(framecode.code.codelocs, codeloc)
-    idxprev = searchsortedfirst(framecode.code.codelocs, codeloc-1) + 1
+    idxline = searchsortedfirst(src.codelocs, codeloc)
+    idxprev = searchsortedfirst(src.codelocs, codeloc-1) + 1
     return idxprev:idxline
 end
+coderange(framecode::FrameCode, thisline) = coderange(framecode.src, thisline)
 
 function breakpoint_action(f, frame, thisline)
-    breakpoints = frame.code.breakpoints
-    for i in coderange(frame.code, thisline)
+    framecode = frame.framecode
+    breakpoints = framecode.breakpoints
+    for i in coderange(framecode.src, thisline)
         if isassigned(breakpoints, i) && (breakpoints[i].isactive || breakpoints[i].condition != JuliaInterpreter.falsecondition)
-            f(Breakpoints.BreakpointRef(frame.code, i))
+            f(JuliaInterpreter.BreakpointRef(framecode, i))
         end
     end
     return nothing

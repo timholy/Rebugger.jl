@@ -78,7 +78,7 @@ end
 
 function show_code(term, frame, deflines, nlines)
     width = displaysize(term)[2]
-    method = frame.code.scope
+    method = JuliaInterpreter.scopeof(frame)
     linenos, line1, showlines = deflines   # linenos is in "compiled" numbering, line1 in "current" numbering
     offset = line1 - method.line           # compiled + offset -> current
     known_linenos = skipmissing(linenos)
@@ -90,7 +90,7 @@ function show_code(term, frame, deflines, nlines)
     for idx in idxrange
         thisline, codestr = linenos[idx], showlines[idx]
         thislinestr = ismissing(thisline) ? " "^nd : lpad(thisline + offset, nd)
-        bchar = breakpoint_style(frame.code, thisline)
+        bchar = breakpoint_style(frame.framecode, thisline)
         linestr = bchar * thislinestr * "  " * codestr
         linestr = linetrunc(iochar, linestr, width)
         if idx == lineidx
@@ -187,8 +187,8 @@ function HeaderREPLs.print_header(io::IO, header::InterpretHeader)
     if header.nlines != 0
         HeaderREPLs.clear_header_area(io, header)
     end
-    depth = length(header.stack) + 1 - header.leveloffset
-    frame = header.leveloffset == 0 ? header.frame : header.stack[depth]
+    frame, Δ = frameoffset(header.frame, header.leveloffset)
+    header.leveloffset -= Δ
     frame === nothing && return nothing
     iocount = IOBuffer()  # for counting lines
     for s in (io, iocount)
@@ -201,33 +201,27 @@ function HeaderREPLs.print_header(io::IO, header::InterpretHeader)
             printstyled(s, header.errmsg, '\n'; color=Base.error_color())
         end
         indent = ""
-        for (i, f) in enumerate(header.stack)
-            if i == depth
-                printstyled(s, indent, f.code.scope, '\n'; color=:light_magenta, bold=true)
+        f = root(frame)
+        while f !== nothing
+            scope = JuliaInterpreter.scopeof(f)
+            if f === frame
+                printstyled(s, indent, scope, '\n'; color=:light_magenta, bold=true)
             else
-                printstyled(s, indent, f.code.scope, '\n'; color=:light_magenta)
+                printstyled(s, indent, scope, '\n'; color=:light_magenta)
             end
             indent *= ' '
+            f = f.callee
         end
-        method = frame.code.scope
-        printstyled(s, indent, method, '\n'; color=:light_magenta, bold = header.leveloffset==0)
-        n = length(frame.code.code.slotnames)
-        for i = 1:n
-            val = frame.locals[i]
-            if val !== nothing
-                name = frame.code.code.slotnames[i]
-                val = something(val)
-                if name == Symbol("#self#") && (isa(val, Type) || sizeof(val) == 0)
-                    continue
-                end
-                if val === nothing
-                    val = "nothing"
-                end
-                try
-                    printf_maxsize(printer, s, "  ", name, " = ", val; maxlines=1, maxchars=ds[2]-1)
-                catch # don't error just because a print method is borked
-                    printstyled(s, "  ", name, " errors in its show method"; color=:red)
-                end
+        for var in JuliaInterpreter.locals(frame)
+            name, val = var.name, var.value
+            name == Symbol("#self#") && (isa(val, Type) || sizeof(val) == 0) && continue
+            if val === nothing
+                val = "nothing"
+            end
+            try
+                printf_maxsize(printer, s, "  ", name, " = ", val; maxlines=1, maxchars=ds[2]-1)
+            catch # don't error just because a print method is borked
+                printstyled(s, "  ", name, " errors in its show method"; color=:red)
             end
         end
     end
@@ -235,4 +229,14 @@ function HeaderREPLs.print_header(io::IO, header::InterpretHeader)
     header.warnmsg = ""
     header.errmsg = ""
     return nothing
+end
+
+function frameoffset(frame, offset)
+    while offset > 0
+        cframe = frame.caller
+        cframe === nothing && break
+        frame = cframe
+        offset -= 1
+    end
+    return frame, offset
 end

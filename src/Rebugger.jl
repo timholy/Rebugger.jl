@@ -6,11 +6,11 @@ import REPL.LineEdit, REPL.Terminals
 using REPL.LineEdit: buffer, bufend, content, edit_splice!
 using REPL.LineEdit: transition, terminal, mode, state
 
-using CodeTracking, Revise, JuliaInterpreter
+using CodeTracking, Revise, JuliaInterpreter, HeaderREPLs
 using Revise: RelocatableExpr, striplines!, printf_maxsize, whichtt, hasfile, unwrap
-using HeaderREPLs
+using JuliaInterpreter: FrameCode
 using Base.Meta: isexpr
-using Debugger
+using Core: CodeInfo
 
 # Reexports
 export @breakpoint, breakpoint, enable, disable, remove
