@@ -81,7 +81,8 @@ function show_code(term, frame, deflines, nlines)
     method = frame.code.scope
     linenos, line1, showlines = deflines   # linenos is in "compiled" numbering, line1 in "current" numbering
     offset = line1 - method.line           # compiled + offset -> current
-    nd = ndigits(offset + maximum(skipmissing(linenos)))
+    known_linenos = skipmissing(linenos)
+    nd = isempty(known_linenos) ? 0 : ndigits(offset + maximum(known_linenos))
     line = JuliaInterpreter.linenumber(frame)    # this is in "compiled" numbering
     lineidx = searchsortedfirst(linenos, line)
     idxrange = max(1, lineidx-2):min(length(linenos), lineidx+2)
@@ -111,6 +112,7 @@ function linetrunc(iochar::IO, linestr, width)
         else
             print(iochar, c)
         end
+        nchars += 1
     end
     return String(take!(iochar))
 end
@@ -118,7 +120,7 @@ linetrunc(linestr, width) = linetrunc(IOBuffer(), linestr, width)
 
 function breakpoint_style(framecode, thisline)
     rng = coderange(framecode, thisline)
-    style =' '
+    style = ' '
     breakpoints = framecode.breakpoints
     for i in rng
         if isassigned(breakpoints, i)
