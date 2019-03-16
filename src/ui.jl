@@ -243,7 +243,7 @@ function interpret(s)
                           q: abort (returns nothing)"""
                 elseif cmd == ' '
                     hdr.leveloffset = 0
-                    ret = debug_command(frame, "n")
+                    ret = debug_command(frame, :n)
                     if ret === nothing
                         hdr.val = JuliaInterpreter.get_return(root(frame))
                         break
@@ -251,7 +251,7 @@ function interpret(s)
                     frame, deflines = refresh(frame, ret, deflines)
                 elseif cmd == '\n' || cmd == '\r'
                     hdr.leveloffset = 0
-                    ret = debug_command(frame, "c")
+                    ret = debug_command(frame, :c)
                     if ret === nothing
                         hdr.val = JuliaInterpreter.get_return(root(frame))
                         break
@@ -270,11 +270,11 @@ function interpret(s)
                     end
                     if cmd == "\e[C"  # right arrow
                         hdr.leveloffset = 0
-                        ret = debug_command(frame, "s")
+                        ret = debug_command(frame, :s)
                         frame, deflines = refresh(frame, ret, deflines)
                     elseif cmd == "\e[D"  # left arrow
                         hdr.leveloffset = 0
-                        ret = debug_command(frame, "s")
+                        ret = debug_command(frame, :finish)
                         if ret === nothing
                             hdr.val = JuliaInterpreter.get_return(root(frame))
                             break
