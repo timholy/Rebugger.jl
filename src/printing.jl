@@ -187,6 +187,7 @@ function HeaderREPLs.print_header(io::IO, header::InterpretHeader)
     if header.nlines != 0
         HeaderREPLs.clear_header_area(io, header)
     end
+    header.frame == nothing && return nothing
     frame, Δ = frameoffset(header.frame, header.leveloffset)
     header.leveloffset -= Δ
     frame === nothing && return nothing

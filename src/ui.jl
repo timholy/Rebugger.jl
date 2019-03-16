@@ -319,6 +319,7 @@ function interpret(s)
     end
     # Store the result
     put!(REPL.backend(mode(s).repl).response_channel, (hdr.val, hdr.bt))
+    hdr.frame = nothing
     return :done
 end
 
