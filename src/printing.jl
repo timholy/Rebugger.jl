@@ -84,7 +84,15 @@ function show_code(term, frame, deflines, nlines)
     known_linenos = skipmissing(linenos)
     nd = isempty(known_linenos) ? 0 : ndigits(offset + maximum(known_linenos))
     line = JuliaInterpreter.linenumber(frame)    # this is in "compiled" numbering
-    lineidx = searchsortedfirst(linenos, line)
+    # lineidx = searchsortedfirst(linenos, line)
+    # Can't use searchsortedfirst with missing
+    lineidx = 0
+    for (i, l) in enumerate(linenos)
+        if !ismissing(l) && l >= line
+            lineidx = i
+            break
+        end
+    end
     idxrange = max(1, lineidx-2):min(length(linenos), lineidx+2)
     iochar = IOBuffer()
     for idx in idxrange
