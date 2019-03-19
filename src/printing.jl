@@ -29,7 +29,9 @@ Base.write(io::LineNumberIO, x::UInt8) = write(io.io, x)
 function expression_lines(method::Method)
     def = definition(method)
     if def === nothing
-        return [missing], 0, ["<code not available>"]
+        src, line1 = definition(String, method)
+        srclines = split(chomp(src), '\n')
+        return Vector(range(Int(line1), length=length(srclines))), line1, srclines
     end
     # We'll use the file in LineNumberNodes to make sure line numbers refer to the "outer"
     # method (and does not get confused by macros etc). Because of symlinks and non-normalized paths,
@@ -130,7 +132,7 @@ function show_code(term, frame, deflines, nlines)
         bchar = breakpoint_style(frame.framecode, thisline)
         linestr = bchar * thislinestr * "  " * codestr
         linestr = linetrunc(iochar, linestr, width)
-        if idx == lineidx
+        if !ismissing(thisline) && thisline == line
             printstyled(term, linestr, '\n'; bold=true)
         else
             print(term, linestr, '\n')
