@@ -250,9 +250,10 @@ function HeaderREPLs.print_header(io::IO, header::InterpretHeader)
             indent *= ' '
             f = f.callee
         end
-        for var in JuliaInterpreter.locals(frame)
+        for (i, var) in enumerate(JuliaInterpreter.locals(frame))
             name, val = var.name, var.value
             name == Symbol("#self#") && (isa(val, Type) || sizeof(val) == 0) && continue
+            name == Symbol("") && (name = "@_" * string(i))
             if val === nothing
                 val = "nothing"
             end
