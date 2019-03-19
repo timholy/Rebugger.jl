@@ -8,7 +8,7 @@ using REPL.LineEdit: transition, terminal, mode, state
 
 using CodeTracking, Revise, JuliaInterpreter, HeaderREPLs
 using Revise: RelocatableExpr, striplines!, printf_maxsize, whichtt, hasfile, unwrap
-using JuliaInterpreter: FrameCode
+using JuliaInterpreter: FrameCode, scopeof
 using Base.Meta: isexpr
 using Core: CodeInfo
 

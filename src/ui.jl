@@ -209,8 +209,9 @@ function interpret(s)
             hdr.bt = catch_backtrace()
         end
     else
+        # frame = JuliaInterpreter.maybe_step_through_wrapper!(frame)
         hdr.frame = frame
-        deflines = expression_lines(JuliaInterpreter.scopeof(frame))
+        deflines = expression_lines(frame)
 
         print(term, '\n') # to advance beyond the user's input line
         nlines = 0
@@ -223,7 +224,7 @@ function interpret(s)
                 else
                     f, Δ = frameoffset(frame, hdr.leveloffset)
                     hdr.leveloffset -= Δ
-                    nlines = show_code(term, f, expression_lines(JuliaInterpreter.scopeof(f)), nlines)
+                    nlines = show_code(term, f, expression_lines(f), nlines)
                 end
                 cmd = read(term, Char)
                 if cmd == '?'
@@ -334,7 +335,7 @@ function refresh(frame, ret, deflines)
     if cframe === frame
         return frame, deflines
     end
-    return cframe, expression_lines(JuliaInterpreter.scopeof(cframe))
+    return cframe, expression_lines(cframe)
 end
 
 # Find the range of statement indexes that preceed a line

@@ -76,9 +76,38 @@ function expression_lines(method::Method)
     return keeplinenos, line1, keepsrc
 end
 
+function expression_lines(frame::Frame)
+    m = scopeof(frame)
+    mlinenos, line1, msrc = expression_lines(m)
+    isdefined(m, :generator) || return mlinenos, line1, msrc
+    # For a generated function, call the generator to get the expression
+    g = m.generator
+    gg = g.gen
+    vars = JuliaInterpreter.locals(frame)
+    ggargs = []
+    for v in vars
+        v.isparam || continue
+        push!(ggargs, v.value)
+    end
+    for v in vars
+        v.isparam && continue
+        push!(ggargs, JuliaInterpreter._Typeof(v.value))
+    end
+    def = gg(ggargs...)
+    # Wrap in a function to get indentation
+    def = Expr(:function, :(generatedtmp()), def)
+    buf = IOBuffer()
+    print(buf, def)  # there are no linenos
+    seek(buf, 0)
+    glines = readlines(buf)
+    gsrc = [msrc[1]; glines[2:end]]
+    linenos = [mlinenos[1]; fill(missing, length(gsrc)-1)]
+    return linenos, line1, gsrc
+end
+
 function show_code(term, frame, deflines, nlines)
     width = displaysize(term)[2]
-    method = JuliaInterpreter.scopeof(frame)
+    method = scopeof(frame)
     linenos, line1, showlines = deflines   # linenos is in "compiled" numbering, line1 in "current" numbering
     offset = line1 - method.line           # compiled + offset -> current
     known_linenos = skipmissing(linenos)
@@ -212,7 +241,7 @@ function HeaderREPLs.print_header(io::IO, header::InterpretHeader)
         indent = ""
         f = root(frame)
         while f !== nothing
-            scope = JuliaInterpreter.scopeof(f)
+            scope = scopeof(f)
             if f === frame
                 printstyled(s, indent, scope, '\n'; color=:light_magenta, bold=true)
             else
