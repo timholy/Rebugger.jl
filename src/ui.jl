@@ -271,6 +271,11 @@ function interpret(s)
                     if cmd == "\e[C"  # right arrow
                         hdr.leveloffset = 0
                         ret = debug_command(frame, :s)
+                        if ret === nothing
+                            # Trying to "step in" at program exit
+                            hdr.val = JuliaInterpreter.get_return(frame)
+                            break
+                        end
                         frame, deflines = refresh(frame, ret, deflines)
                     elseif cmd == "\e[D"  # left arrow
                         hdr.leveloffset = 0
