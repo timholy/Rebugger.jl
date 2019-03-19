@@ -13,7 +13,7 @@ using Base.Meta: isexpr
 using Core: CodeInfo
 
 # Reexports
-export @breakpoint, breakpoint, enable, disable, remove
+export @breakpoint, breakpoint, enable, disable, remove, break_on, break_off
 
 const msgs = []  # for debugging. The REPL-magic can sometimes overprint error messages
 
