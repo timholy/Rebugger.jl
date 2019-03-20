@@ -51,6 +51,8 @@ There's a considerable pause the first time you do this, but later it should gen
 
 After the "Info" line, you can see the method you called printed on top.
 After that are the local variables of `sort`, which here is just the array you supplied.
+(You can see some screenshots below in the "edit mode" section that show these in color.
+The meaning is the same here.)
 The "742" indicates the line number of "sort.jl", where the `sort` method you're calling
 is defined.
 Finally, you'll see a representation of the definition itself. Rebugger typically shows
@@ -103,10 +105,10 @@ You'll note the source expression hasn't changed, because it's generated from th
 definition, but that some additional arguments (`kws` and the "nameless argument" `@_3`)
 have appeared.
 
-If we hit the right arrow again, we enter `copymutable`. Hit the left arrow immediately
-to finish the execution of `copymutable`; our interest is in stepping further into `sort`,
-so we're not going to bother walking through `copymutable`. The left arrow should return
-you to `#sort#8`; then hit the right arrow again and you should be here:
+If we hit the right arrow again, we enter `copymutable`. Our interest is in stepping further into `sort`,
+so we're not going to bother walking through `copymutable`; hit left arrow, which finishes
+the current frame and returns to the caller. This should return
+you to `#sort#8`. Then hit the right arrow again and you should be here:
 
 ```
 sort(v::AbstractArray{T,1} where T) in Base.Sort at sort.jl:742
@@ -127,8 +129,10 @@ sort(v::AbstractArray{T,1} where T) in Base.Sort at sort.jl:742
  684          n = length(v)
 ```
 
-Now you can see many more arguments. To understand everything you're seeing, it may help
-to open the source file in an editor for comparison. Note that long function bodies are
+Now you can see many more arguments. To understand everything you're seeing, sometimes
+it may help to open the source file in an editor (hit 'o' for open) for comparison.
+
+Note that long function bodies are
 truncated; you only see a few lines around the current execution point.
 
 Line 682 should be highlighted. Hit the space bar and you should advance to 683:
@@ -273,6 +277,10 @@ convert(::Type{T}, x::Number) where T<:Number in Base at number.jl:7
   val = -8
  583  throw_inexacterror(f::Symbol, @nospecialize(T), val) = (@_noinline_meta; throw(Inexact…
 ```
+
+Try using the up and down arrows to navigate up and down the call stack. This doesn't
+change the notion of current execution point (that's still at that `throw_inexacterror` call
+above), but it does let you see where you came from.
 
 You can turn this off with `break_off` and clear all manually-set breakpoints with `remove()`.
 
@@ -429,6 +437,7 @@ Captured elements of stacktrace:
 [2] _parse_colorant(desc::AbstractString) in Colors at /home/tim/.julia/packages/Colors/4hvzi/src/parse.jl:51
 [3] _parse_colorant(::Type{C}, ::Type{SUP}, desc::AbstractString) where {C<:Colorant, SUP} in Colors at /home/tim/.julia/packages/Colors/4hvzi/src/parse.jl:112
 [4] parse(::Type{C}, desc::AbstractString) where C<:Colorant in Colors at /home/tim/.julia/packages/Colors/4hvzi/src/parse.jl:140
+[5] @colorant_str(__source__::LineNumberNode, __module__::Module, ex) in Colors at /home/tim/.julia/packages/Colors/4hvzi/src/parse.jl:146
 _parse_colorant(::Type{C}, ::Type{SUP}, desc::AbstractString) where {C<:Colorant, SUP} in Colors at /home/tim/.julia/packages/Colors/4hvzi/src/parse.jl:112
   C = Colorant
   SUP = Any
@@ -455,12 +464,7 @@ the "method" will be run with the same inputs each time.
 
 #### "Missing" methods from stacktraces
 
-In the example above, you may have noticed the warning about the `@colorant_str` macro
-being omitted from the "captured" (interactive) expressions comprising the stacktrace.
-Macros are not traced.
-
-When many methods use keyword arguments, the apparent difference between the
-"real" stacktrace and the "captured" stacktrace can be quite dramatic:
+Sometimes, there's a large difference between the "real" stacktrace and the "captured" stacktrace:
 
 ```julia
 julia> using Pkg
@@ -488,22 +492,23 @@ Stacktrace:
  [14] top-level scope at none:0
 
 julia> Pkg.add("NoPkg")  # hit Meta-s here
-Captured elements of stacktrace:
-[1] pkgerror(msg::String...) in Pkg.Types at /home/tim/src/julia-1.0/usr/share/julia/stdlib/v1.0/Pkg/src/Types.jl:120
-[2] add(args...) in Pkg.API at /home/tim/src/julia-1.0/usr/share/julia/stdlib/v1.0/Pkg/src/API.jl:69
-pkgerror(msg::String...) in Pkg.Types at /home/tim/src/julia-1.0/usr/share/julia/stdlib/v1.0/Pkg/src/Types.jl:120
+[1] pkgerror(msg::String...) in Pkg.Types at /home/tim/src/julia-1/usr/share/julia/stdlib/v1.1/Pkg/src/Types.jl:120
+[2] #ensure_resolved#72(registry::Bool, ::Any, env::Pkg.Types.EnvCache, pkgs::AbstractArray{Pkg.Types.PackageSpec,1}) in Pkg.Types at /home/tim/src/julia-1/usr/share/julia/stdlib/v1.1/Pkg/src/Types.jl:981
+[3] #add_or_develop#15(mode::Symbol, shared::Bool, kwargs, ::Any, ctx::Pkg.Types.Context, pkgs::Array{Pkg.Types.PackageSpec,1}) in Pkg.API at /home/tim/src/julia-1/usr/share/julia/stdlib/v1.1/Pkg/src/API.jl:34
+[4] #add_or_develop#12(kwargs, ::Any, pkg::Union{AbstractString, PackageSpec}) in Pkg.API at /home/tim/src/julia-1/usr/share/julia/stdlib/v1.1/Pkg/src/API.jl:28
+[5] add(args...) in Pkg.API at /home/tim/src/julia-1/usr/share/julia/stdlib/v1.1/Pkg/src/API.jl:59
+pkgerror(msg::String...) in Pkg.Types at /home/tim/src/julia-1/usr/share/julia/stdlib/v1.1/Pkg/src/Types.jl:120
   msg = ("The following package names could not be resolved:\n * NoPkg (not found in project, manifest or registry)\nPlease specify by known `name=uuid`.",)
-rebug> @eval Pkg.Types let (msg,) = Main.Rebugger.getstored("161c53ba-0dfe-11e9-0f8f-59f468aec692")
+rebug> @eval Pkg.Types let (msg,) = Main.Rebugger.getstored("1ac42628-4b15-11e9-28e7-33f71870bf31")
        begin
            throw(PkgError(join(msg)))
        end
        end
 ```
 
-Note that only two methods got captured but the stacktrace is much longer.
-Most of these methods, however, start with `#`, an indication that they are
-generated (keyword-handling) methods rather than ones that appear directly in the source code.
-For now, Rebugger omits these entries.
+Note that only five methods got captured but the stacktrace is much longer.
+Most of these methods, however, say "inlined" with line number 0.
+Rebugger has no way of finding such methods.
 However, you can enter (i.e., Meta-e) such methods from one that is higher in the stack trace.
 
 #### Modified "signatures"
@@ -555,5 +560,5 @@ conflict with any internal names.
     Since `copyto!` is widely used, this forces recompilation of a lot
     of methods in Base.
 
-    In contrast with capturing stacktraces, stepping in does not overwrite methods,
-    so is sometimes preferred.
+    In contrast with capturing stacktraces, stepping in (Meta-e) does not overwrite methods,
+    so is sometimes preferred. And of course, interpret mode (Meta-i) also doesn't overwrite methods.
