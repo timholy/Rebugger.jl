@@ -482,8 +482,7 @@ function get_rebugger_modeswitch_dict()
     rebugger_modeswitch
 end
 
-function add_keybindings(; override::Bool=false, kwargs...)
-    main_repl = Base.active_repl
+function add_keybindings(main_repl; override::Bool=false, kwargs...)
     history_prompt = find_prompt(main_repl.interface, LineEdit.PrefixHistoryPrompt)
     julia_prompt = find_prompt(main_repl.interface, "julia")
     rebug_prompt = find_prompt(main_repl.interface, "rebug")

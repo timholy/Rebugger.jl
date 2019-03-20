@@ -49,7 +49,7 @@ function rebugrepl_init(main_repl, repl_inited)
     erepl = HeaderREPL(main_repl, RebugHeader())
     interface = REPL.setup_interface(erepl; extra_repl_keymap=[get_rebugger_modeswitch_dict(), rebugger_keys])
     eprompt = interface.modes[end]
-    add_keybindings(; override=repl_inited, keybindings...)
+    add_keybindings(main_repl; override=repl_inited, keybindings...)
     return iprompt, eprompt
 end
 
