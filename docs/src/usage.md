@@ -57,7 +57,8 @@ Finally, you'll see a representation of the definition itself. Rebugger typicall
 you expressions rather than verbatim text; unlike the text in the original file,
  this works equally well for `@eval`ed functions and generated functions.
 
-The current line is printed in boldface; here, that's everything, so there's not much to see.
+The current line number is printed in yellow; here, that's both lines, since the original
+definition was written on a single line.
 
 We can learn about the possibilities by typing `?`:
 

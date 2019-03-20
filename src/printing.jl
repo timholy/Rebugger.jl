@@ -187,15 +187,15 @@ function show_code(term, frame, deflines, nlines)
     iochar = IOBuffer()
     for idx in idxrange
         thisline, codestr = linenos[idx], showlines[idx]
-        thislinestr = ismissing(thisline) ? " "^nd : lpad(thisline + offset, nd)
-        bchar = breakpoint_style(frame.framecode, thisline)
-        linestr = bchar * thislinestr * "  " * codestr
-        linestr = linetrunc(iochar, linestr, width)
-        if !ismissing(thisline) && thisline == line
-            printstyled(term, linestr, '\n'; bold=true)
+        print(term, breakpoint_style(frame.framecode, thisline))
+        if ismissing(thisline)
+            print(term, " "^nd)
         else
-            print(term, linestr, '\n')
+            linestr = lpad(thisline + offset, nd)
+            printstyled(term, linestr; color = thisline==line ? Base.warn_color() : :normal)
         end
+        linestr = linetrunc(iochar, codestr, width-nd-3)
+        print(term, "  ", linestr, '\n')
     end
     return length(idxrange)
 end
