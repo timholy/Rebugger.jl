@@ -36,14 +36,21 @@ function rebugrepl_init()
     end
     sleep(0.1) # for extra safety
     # Set up the custom "rebug" REPL
-    main_repl = Base.active_repl
-    repl = HeaderREPL(main_repl, InterpretHeader())
-    interface = REPL.setup_interface(repl; extra_repl_keymap=Dict[])
-    interpret_prompt_ref[] = interface.modes[end]
-    repl = HeaderREPL(main_repl, RebugHeader())
-    interface = REPL.setup_interface(repl; extra_repl_keymap=[get_rebugger_modeswitch_dict(), rebugger_keys])
-    rebug_prompt_ref[] = interface.modes[end]
+    iprompt, eprompt = rebugrepl_init(Base.active_repl, repl_inited)
+    interpret_prompt_ref[] = iprompt
+    rebug_prompt_ref[] = eprompt
+    return nothing
+end
+
+function rebugrepl_init(main_repl, repl_inited)
+    irepl = HeaderREPL(main_repl, InterpretHeader())
+    interface = REPL.setup_interface(irepl; extra_repl_keymap=Dict[])
+    iprompt = interface.modes[end]
+    erepl = HeaderREPL(main_repl, RebugHeader())
+    interface = REPL.setup_interface(erepl; extra_repl_keymap=[get_rebugger_modeswitch_dict(), rebugger_keys])
+    eprompt = interface.modes[end]
     add_keybindings(; override=repl_inited, keybindings...)
+    return iprompt, eprompt
 end
 
 function __init__()

@@ -324,7 +324,10 @@ function interpret(s)
         end
     end
     # Store the result
-    put!(REPL.backend(mode(s).repl).response_channel, (hdr.val, hdr.bt))
+    repl = mode(s).repl
+    if isdefined(repl, :backendref)
+        put!(repl.backendref.response_channel, (hdr.val, hdr.bt))
+    end
     hdr.frame = nothing
     return :done
 end

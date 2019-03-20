@@ -1,0 +1,24 @@
+++++++++++++++++++++++++++++++++++++++++++++++++++
+|gcd(10, 20)
+|gcd(a::T, b::T) where T<:Union{Int128, Int16, Int32, Int64, Int8, UInt128, UInt1
+|6, UInt32, UInt64, UInt8} in Base at intfuncs.jl:31
+|  a = 10
+|  b = 20
+|  T = Int64
+| 30  function gcd(a::T, b::T) where T <: Union{Int8, UInt8, Int16, UInt16, Int…
+| 31      a == 0 && return abs(b)
+| 32      b == 0 && return abs(a)
+| 33      za = trailing_zeros(a)
+|
+--------------------------------------------------
+|AAAAAAAAAAA
+|AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+|AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+|AAAAAAAA
+|AAAAAAAA
+|AAAAAAAAAAA
+|AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+|AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+|AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+|AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+|
