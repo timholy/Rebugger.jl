@@ -330,7 +330,7 @@ and [`stepin`](@ref) which puts these two together.
 """
 function prepare_caller_capture!(io)  # for testing, needs to work on a normal IO object
     start = position(io)
-    callstring = content(io, start=>bufend(io))
+    callstring, _ = stripsc(content(io, start=>bufend(io)))
     callexpr, len = Meta.parse(callstring, 1; raise=false)
     callexpr == nothing && throw(StepException("Got empty expression from $callstring"))
     isa(callexpr, Expr) || throw(StepException("Rebugger can only step into expressions, got $callexpr"))
@@ -629,6 +629,16 @@ function rename_method!(sig::Expr, name::Symbol, callerobj)
     return ex
 end
 rename_method(sig::Expr, name::Symbol, callerobj) = rename_method!(copy(sig), name, callerobj)
+
+function stripsc(str)
+    str = chomp(str)
+    display_result = false
+    if endswith(str, ';')
+        str = str[1:end-1]
+        display_result = true
+    end
+    return str, display_result
+end
 
 const poppable_macro = (Symbol("@inline"), Symbol("@noinline"), Symbol("@propagate_inbounds"), Symbol("@eval"), Symbol("@pure"))
 is_poppable_macro(ex) = ex ∈ poppable_macro ||

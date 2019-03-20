@@ -7,3 +7,4 @@ if Sys.isunix()
 else
     @warn "Skipping UI tests"
 end
+println("done")  # there is so much terminal manipulation, best to let the user know

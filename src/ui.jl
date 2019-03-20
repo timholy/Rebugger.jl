@@ -195,7 +195,7 @@ function interpret(s)
     cmdstring = LineEdit.content(s)
     isempty(cmdstring) && return :done
     add_history(s, cmdstring)
-    expr = Meta.parse(cmdstring)
+    assigns, expr, display_result = simplecall(cmdstring)
     tupleexpr = JuliaInterpreter.extract_args(Main, expr)
     callargs = Core.eval(Main, tupleexpr)   # get the elements of the call
     callexpr = Expr(:call, callargs...)
@@ -326,9 +326,13 @@ function interpret(s)
     # Store the result
     repl = mode(s).repl
     if isdefined(repl, :backendref)
-        put!(repl.backendref.response_channel, (hdr.val, hdr.bt))
+        put!(repl.backendref.response_channel, (display_result ? hdr.val : nothing, hdr.bt))
     end
     hdr.frame = nothing
+    # Do this last in case of errors
+    if assigns !== nothing && hdr.bt === nothing
+        Core.eval(Main, Expr(:(=), assigns, hdr.val))
+    end
     return :done
 end
 
@@ -363,6 +367,22 @@ function breakpoint_action(f, frame, thisline)
         end
     end
     return nothing
+end
+
+function simplecall(cmdstring)
+    cmdstring = chomp(cmdstring)
+    display_result = !endswith(cmdstring, ';')
+    if !display_result
+        cmdstring = cmdstring[1:end-1]
+    end
+    expr = Meta.parse(cmdstring)
+    if expr.head == :(=)
+        assigns = expr.args[1]
+        expr = expr.args[2]
+    else
+        assigns = nothing
+    end
+    return assigns, expr, display_result
 end
 
 ### REPL modes

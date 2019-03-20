@@ -2,6 +2,7 @@
 
 using TerminalRegressionTests, Rebugger, Revise
 using HeaderREPLs, REPL
+using Test
 
 function run_terminal_test(cmd, validation, commands)
     TerminalRegressionTests.automated_test(joinpath(@__DIR__, validation), commands) do emuterm
@@ -30,3 +31,7 @@ UP_ARROW = "\e[A"
 run_terminal_test("gcd(10, 20)",
                   "ui/gcd.multiout",
                   ['\n'])
+run_terminal_test("__gcdval__ = gcd(10, 20);",
+                  "ui/gcdsc.multiout",
+                  ['\n'])
+@test __gcdval__ == gcd(10, 20)
