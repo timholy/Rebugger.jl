@@ -1,20 +1,25 @@
 module Rebugger
 
-using UUIDs
+using UUIDs, InteractiveUtils
 using REPL
 import REPL.LineEdit, REPL.Terminals
 using REPL.LineEdit: buffer, bufend, content, edit_splice!
 using REPL.LineEdit: transition, terminal, mode, state
 
-using Revise
-using Revise: ExLike, RelocatableExpr, get_signature, funcdef_body, get_def, striplines!
-using Revise: printf_maxsize
-using HeaderREPLs
+using CodeTracking, Revise, JuliaInterpreter, HeaderREPLs
+using Revise: RelocatableExpr, striplines!, printf_maxsize, whichtt, hasfile, unwrap
+using JuliaInterpreter: FrameCode, scopeof
+using Base.Meta: isexpr
+using Core: CodeInfo
+
+# Reexports
+export @breakpoint, breakpoint, enable, disable, remove, break_on, break_off
 
 const msgs = []  # for debugging. The REPL-magic can sometimes overprint error messages
 
 include("debug.jl")
 include("ui.jl")
+include("printing.jl")
 include("deepcopy.jl")
 
 # Set up keys that enter rebug mode from the regular Julia REPL
@@ -31,13 +36,22 @@ function rebugrepl_init()
     end
     sleep(0.1) # for extra safety
     # Set up the custom "rebug" REPL
-    main_repl = Base.active_repl
-    repl = HeaderREPL(main_repl, RebugHeader())
-    interface = REPL.setup_interface(repl; extra_repl_keymap=[get_rebugger_modeswitch_dict(), rebugger_keys])
-    rebug_prompt_ref[] = interface.modes[end]
-    add_keybindings(; override=repl_inited, deprecated_keybindings..., keybindings...)
+    iprompt, eprompt = rebugrepl_init(Base.active_repl, repl_inited)
+    interpret_prompt_ref[] = iprompt
+    rebug_prompt_ref[] = eprompt
+    return nothing
 end
 
+function rebugrepl_init(main_repl, repl_inited)
+    irepl = HeaderREPL(main_repl, InterpretHeader())
+    interface = REPL.setup_interface(irepl; extra_repl_keymap=Dict[])
+    iprompt = interface.modes[end]
+    erepl = HeaderREPL(main_repl, RebugHeader())
+    interface = REPL.setup_interface(erepl; extra_repl_keymap=[get_rebugger_modeswitch_dict(), rebugger_keys])
+    eprompt = interface.modes[end]
+    add_keybindings(main_repl; override=repl_inited, keybindings...)
+    return iprompt, eprompt
+end
 
 function __init__()
     schedule(Task(rebugrepl_init))

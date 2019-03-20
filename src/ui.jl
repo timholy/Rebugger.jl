@@ -1,5 +1,15 @@
 const rebug_prompt_string = "rebug> "
-const rebug_prompt_ref = Ref{Union{LineEdit.Prompt,Nothing}}(nothing)   # set by __init__
+const rebug_prompt_ref = Ref{Union{LineEdit.Prompt,Nothing}}(nothing)       # set by __init__
+const interpret_prompt_ref = Ref{Union{LineEdit.Prompt,Nothing}}(nothing)   # set by __init__
+
+# For debugging
+function logaction(msg)
+    open("/tmp/rebugger.log", "a") do io
+        println(io, "* ", msg)
+        flush(io)
+    end
+    nothing
+end
 
 dummy() = nothing
 const dummymethod = first(methods(dummy))
@@ -16,10 +26,22 @@ mutable struct RebugHeader <: AbstractHeader
 end
 RebugHeader() = RebugHeader("", "", dummyuuid, dummymethod, 0)
 
-function header(s::LineEdit.MIState)
-    rebug_prompt = rebug_prompt_ref[]
-    rebug_prompt.repl.header
+mutable struct InterpretHeader <: AbstractHeader
+    frame::Union{Nothing,Frame}
+    leveloffset::Int
+    val
+    bt
+    warnmsg::String
+    errmsg::String
+    nlines::Int   # size of the printed header
 end
+InterpretHeader() = InterpretHeader(nothing, 0, nothing, nothing, "", "", 0)
+
+struct DummyAST end  # fictive input for the put!/take! evaluation by the InterpretREPL backend
+
+header(s::LineEdit.MIState) = header(mode(s).repl)
+header(repl::HeaderREPL) = repl.header
+header(::LineEditREPL) = header(rebug_prompt_ref[].repl)  # default to the Rebug header
 
 # Custom methods
 set_method!(header::RebugHeader, method::Method) = header.current_method = method
@@ -166,45 +188,209 @@ function add_history(s, str::AbstractString)
     REPL.add_history(hp, buf)
 end
 
-### REPL mode
+function interpret(s)
+    hdr = header(s)
+    hdr.bt = nothing
+    term = REPL.terminal(s)
+    cmdstring = LineEdit.content(s)
+    isempty(cmdstring) && return :done
+    add_history(s, cmdstring)
+    assigns, expr, display_result = simplecall(cmdstring)
+    tupleexpr = JuliaInterpreter.extract_args(Main, expr)
+    callargs = Core.eval(Main, tupleexpr)   # get the elements of the call
+    callexpr = Expr(:call, callargs...)
+    frame = JuliaInterpreter.enter_call_expr(callexpr)
+    if frame === nothing
+        local val
+        try
+            hdr.val = Core.eval(Main, callexpr)
+        catch err
+            hdr.val = err
+            hdr.bt = catch_backtrace()
+        end
+    else
+        # frame = JuliaInterpreter.maybe_step_through_wrapper!(frame)
+        hdr.frame = frame
+        deflines = expression_lines(frame)
 
-function HeaderREPLs.print_header(io::IO, header::RebugHeader)
-    if header.nlines != 0
-        HeaderREPLs.clear_header_area(io, header)
-    end
-    iocount = IOBuffer()  # for counting lines
-    for s in (io, iocount)
-        if !isempty(header.warnmsg)
-            printstyled(s, header.warnmsg, '\n'; color=Base.warn_color())
-        end
-        if !isempty(header.errmsg)
-            printstyled(s, header.errmsg, '\n'; color=Base.error_color())
-        end
-        if header.current_method != dummymethod
-            printstyled(s, header.current_method, '\n'; color=:light_magenta)
-        end
-        if header.uuid != dummyuuid
-            data = stored[header.uuid]
-            ds = displaysize(io)
-            printer(args...) = printstyled(args..., '\n'; color=:light_blue)
-            for (name, val) in zip(data.varnames, data.varvals)
-                # Make sure each only spans one line
-                if val === nothing
-                    val = "nothing"
+        print(term, '\n') # to advance beyond the user's input line
+        nlines = 0
+        try
+            while true
+                HeaderREPLs.clear_nlines(term, nlines)
+                print_header(term, hdr)
+                if hdr.leveloffset == 0
+                    nlines = show_code(term, frame, deflines, nlines)
+                else
+                    f, Δ = frameoffset(frame, hdr.leveloffset)
+                    hdr.leveloffset -= Δ
+                    nlines = show_code(term, f, expression_lines(f), nlines)
                 end
-                try
-                    Revise.printf_maxsize(printer, s, "  ", name, " = ", val; maxlines=1, maxchars=ds[2]-1)
-                catch # don't error just because a print method is borked
-                    printstyled(s, "  ", name, " errors in its show method"; color=:red)
+                cmd = read(term, Char)
+                if cmd == '?'
+                    hdr.warnmsg = """
+                    Commands:
+                      space: next line
+                      enter: continue to next breakpoint or completion
+                          →: step in to next call
+                          ←: finish frame and return to caller
+                          ↑: display the caller frame
+                          ↓: display the callee frame
+                          b: insert breakpoint at current line
+                          c: insert conditional breakpoint at current line
+                          r: remove breakpoint at current line
+                          d: disable breakpoint at current line
+                          e: enable breakpoint at current line
+                          o: open current position in editor
+                          q: abort (returns nothing)"""
+                elseif cmd == ' '
+                    hdr.leveloffset = 0
+                    ret = debug_command(frame, :n)
+                    if ret === nothing
+                        hdr.val = JuliaInterpreter.get_return(root(frame))
+                        break
+                    end
+                    frame, deflines = refresh(frame, ret, deflines)
+                elseif cmd == '\n' || cmd == '\r'
+                    hdr.leveloffset = 0
+                    ret = debug_command(frame, :c)
+                    if ret === nothing
+                        hdr.val = JuliaInterpreter.get_return(root(frame))
+                        break
+                    end
+                    frame, deflines = refresh(frame, ret, deflines)
+                elseif cmd == 'q'
+                    hdr.val = nothing
+                    break
+                elseif cmd == 'o'
+                    f, Δ = frameoffset(frame, hdr.leveloffset)
+                    file, line = whereis(f)
+                    edit(file, line)
+                elseif cmd == '\e'   # escape codes
+                    nxtcmd = read(term, Char)
+                    nxtcmd == "O" && (nxtcmd = '[')  # normalize escape code
+                    cmd *= nxtcmd
+                    while nxtcmd == '['
+                        nxtcmd = read(term, Char)
+                        cmd *= nxtcmd
+                    end
+                    if cmd == "\e[C"  # right arrow
+                        hdr.leveloffset = 0
+                        ret = debug_command(frame, :s)
+                        if ret === nothing
+                            # Trying to "step in" at program exit
+                            hdr.val = JuliaInterpreter.get_return(frame)
+                            break
+                        end
+                        frame, deflines = refresh(frame, ret, deflines)
+                    elseif cmd == "\e[D"  # left arrow
+                        hdr.leveloffset = 0
+                        ret = debug_command(frame, :finish)
+                        if ret === nothing
+                            hdr.val = JuliaInterpreter.get_return(root(frame))
+                            break
+                        end
+                        frame, deflines = refresh(frame, ret, deflines)
+                    elseif cmd == "\e[A"  # up arrow
+                        hdr.leveloffset += 1
+                    elseif cmd == "\e[B"  # down arrow
+                        hdr.leveloffset = max(0, hdr.leveloffset - 1)
+                    end
+                elseif cmd == 'b'
+                    JuliaInterpreter.breakpoint!(frame.framecode, frame.pc)
+                elseif cmd == 'c'
+                    print(term, "enter condition: ")
+                    condstr = ""
+                    c = read(term, Char)
+                    while c != '\n' && c != '\r'
+                        print(term, c)
+                        condstr *= c
+                        c = read(term, Char)
+                    end
+                    condex = Base.parse_input_line(condstr; filename="condition")
+                    JuliaInterpreter.breakpoint!(frame.framecode, frame.pc, (JuliaInterpreter.moduleof(frame), condex))
+                elseif cmd == 'r'
+                    thisline = JuliaInterpreter.linenumber(frame)
+                    breakpoint_action(remove, frame, thisline)
+                elseif cmd == 'd'
+                    thisline = JuliaInterpreter.linenumber(frame)
+                    breakpoint_action(disable, frame, thisline)
+                elseif cmd == 'e'
+                    thisline = JuliaInterpreter.linenumber(frame)
+                    breakpoint_action(enable, frame, thisline)
+                else
+                    push!(msgs, cmd)
                 end
+                hdr.frame = frame
             end
+        catch err
+            hdr.val = err
+            hdr.bt = catch_backtrace()
         end
     end
-    header.nlines = count_display_lines(iocount, displaysize(io))
-    header.warnmsg = ""
-    header.errmsg = ""
+    # Store the result
+    repl = mode(s).repl
+    if isdefined(repl, :backendref)
+        put!(repl.backendref.response_channel, (display_result ? hdr.val : nothing, hdr.bt))
+    end
+    hdr.frame = nothing
+    # Do this last in case of errors
+    if assigns !== nothing && hdr.bt === nothing
+        Core.eval(Main, Expr(:(=), assigns, hdr.val))
+    end
+    return :done
+end
+
+function refresh(frame, ret, deflines)
+    @assert ret !== nothing
+    cframe, _ = ret
+    if cframe === frame
+        return frame, deflines
+    end
+    return cframe, expression_lines(cframe)
+end
+
+# Find the range of statement indexes that preceed a line
+# `thisline` should be in "compiled" numbering
+function coderange(src::CodeInfo, thisline)
+    codeloc = searchsortedfirst(src.linetable, LineNumberNode(thisline, ""); by=x->x.line)
+    if codeloc == 1
+        return 1:1
+    end
+    idxline = searchsortedfirst(src.codelocs, codeloc)
+    idxprev = searchsortedfirst(src.codelocs, codeloc-1) + 1
+    return idxprev:idxline
+end
+coderange(framecode::FrameCode, thisline) = coderange(framecode.src, thisline)
+
+function breakpoint_action(f, frame, thisline)
+    framecode = frame.framecode
+    breakpoints = framecode.breakpoints
+    for i in coderange(framecode.src, thisline)
+        if isassigned(breakpoints, i) && (breakpoints[i].isactive || breakpoints[i].condition != JuliaInterpreter.falsecondition)
+            f(JuliaInterpreter.BreakpointRef(framecode, i))
+        end
+    end
     return nothing
 end
+
+function simplecall(cmdstring)
+    cmdstring = chomp(cmdstring)
+    display_result = !endswith(cmdstring, ';')
+    if !display_result
+        cmdstring = cmdstring[1:end-1]
+    end
+    expr = Meta.parse(cmdstring)
+    if expr.head == :(=)
+        assigns = expr.args[1]
+        expr = expr.args[2]
+    else
+        assigns = nothing
+    end
+    return assigns, expr, display_result
+end
+
+### REPL modes
 
 function HeaderREPLs.setup_prompt(repl::HeaderREPL{RebugHeader}, hascolor::Bool)
     julia_prompt = find_prompt(repl.interface, "julia")
@@ -245,44 +431,63 @@ function HeaderREPLs.activate_header(header::RebugHeader, p, s, termbuf, term)
     set_uuid!(header, str)
 end
 
+## Interpret also requires a separate repl
+
+function HeaderREPLs.setup_prompt(repl::HeaderREPL{InterpretHeader}, hascolor::Bool)
+    julia_prompt = find_prompt(repl.interface, "julia")
+
+    prompt = REPL.LineEdit.Prompt(
+        "interpret> ";   # should never be shown
+        prompt_prefix = hascolor ? repl.prompt_color : "",
+        prompt_suffix = hascolor ?
+            (repl.envcolors ? Base.input_color : repl.input_color) : "",
+        complete = julia_prompt.complete,
+        on_enter = REPL.return_callback)
+
+    prompt.on_done = HeaderREPLs.respond(repl, julia_prompt) do str
+        return DummyAST()
+    end
+    return prompt, :rebug
+end
+
+function HeaderREPLs.append_keymaps!(keymaps, repl::HeaderREPL{InterpretHeader})
+    # No keymaps
+    return keymaps
+end
+
+function HeaderREPLs.activate_header(header::InterpretHeader, p, s, termbuf, term)
+end
+
+function Base.put!(c::Channel, input::Tuple{DummyAST,Int})
+    return nothing
+end
+
 const keybindings = Dict{Symbol,String}(
     :stacktrace => "\es",                        # Alt-s ("[s]tacktrace")
     :stepin => "\ee",                            # Alt-e ("[e]nter")
-)
-const deprecated_keybindings = Dict{Symbol,Vector{String}}(
-    :deprecated_stacktrace => ["\e[15~"],        # F5
-    :deprecated_stepin => ["\e\eOM", "\e[23~"],  # Alt-Shift-Enter, F11
+    :interpret => "\ei",                         # Alt-i ("[i]nterpret")
 )
 
 const modeswitches = Dict{Any,Any}(
     :stacktrace => (s, o...) -> capture_stacktrace(s),
     :stepin => (s, o...) -> (stepin(s); enter_rebug(s)),
-    :deprecated_stacktrace => (s, o...) -> (rebug_prompt_ref[].repl.header.warnmsg="stacktrace is now Alt-s (see docs for customization options)"; capture_stacktrace(s)),
-    :deprecated_stepin => (s, o...) -> (stepin(s); rebug_prompt_ref[].repl.header.warnmsg="stepin is now Alt-e (see docs for customization options)"; enter_rebug(s)),
+    :interpret => (s, o...) -> (enter_interpret(s); interpret(s)),
 )
 
 function get_rebugger_modeswitch_dict()
     rebugger_modeswitch = Dict()
-    # Process the deprecated bindings first; that way, if the user customizes it back
-    # to one of the deprecated choices, it will override without issuing the warning.
-    for (action, list) in deprecated_keybindings
-        for keybinding in list
-            rebugger_modeswitch[keybinding] = modeswitches[action]
-        end
-    end
     for (action, keybinding) in keybindings
         rebugger_modeswitch[keybinding] = modeswitches[action]
     end
     rebugger_modeswitch
 end
 
-function add_keybindings(; override::Bool=false, kwargs...)
-    main_repl = Base.active_repl
+function add_keybindings(main_repl; override::Bool=false, kwargs...)
     history_prompt = find_prompt(main_repl.interface, LineEdit.PrefixHistoryPrompt)
     julia_prompt = find_prompt(main_repl.interface, "julia")
     rebug_prompt = find_prompt(main_repl.interface, "rebug")
     for (action, keybinding) in kwargs
-        if !(action in keys(keybindings)) && !(action in keys(deprecated_keybindings))
+        if !(action in keys(keybindings))
             error("$action is not a supported action.")
         end
         if !(keybinding isa Union{String,Vector{String}})
@@ -291,16 +496,20 @@ function add_keybindings(; override::Bool=false, kwargs...)
         if haskey(keybindings, action)
             keybindings[action] = keybinding
         end
-        # We need Any here because "cannot convert REPL.LineEdit.PrefixHistoryPrompt to an object of type REPL.LineEdit.Prompt"
-        prompts = Any[julia_prompt, rebug_prompt]
-        if action ∈ (:stacktrace, :deprecated_stacktrace) push!(prompts, history_prompt) end
-        for prompt in prompts
-            if keybinding isa Vector
-                for kb in keybinding
-                    LineEdit.add_nested_key!(prompt.keymap_dict, kb, modeswitches[action], override=override)
+        if action == :interpret
+            LineEdit.add_nested_key!(julia_prompt.keymap_dict, keybinding, modeswitches[action], override=override)
+        else
+            # We need Any here because "cannot convert REPL.LineEdit.PrefixHistoryPrompt to an object of type REPL.LineEdit.Prompt"
+            prompts = Any[julia_prompt, rebug_prompt]
+            if action == :stacktrace push!(prompts, history_prompt) end
+            for prompt in prompts
+                if keybinding isa Vector
+                    for kb in keybinding
+                        LineEdit.add_nested_key!(prompt.keymap_dict, kb, modeswitches[action], override=override)
+                    end
+                else
+                    LineEdit.add_nested_key!(prompt.keymap_dict, keybinding, modeswitches[action], override=override)
                 end
-            else
-                LineEdit.add_nested_key!(prompt.keymap_dict, keybinding, modeswitches[action], override=override)
             end
         end
     end
@@ -317,6 +526,7 @@ const rebugger_keys = Dict{Any,Any}(
 
 
 enter_rebug(s) = mode_switch(s, rebug_prompt_ref[])
+enter_interpret(s) = mode_switch(s, interpret_prompt_ref[])
 
 function mode_switch(s, other_prompt)
     buf = copy(LineEdit.buffer(s))

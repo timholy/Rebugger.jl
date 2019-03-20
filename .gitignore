@@ -1,2 +1,4 @@
 docs/build/
 docs/site/
+test/expected.out
+test/failed.out
