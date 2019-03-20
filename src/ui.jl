@@ -241,6 +241,7 @@ function interpret(s)
                           r: remove breakpoint at current line
                           d: disable breakpoint at current line
                           e: enable breakpoint at current line
+                          o: open current position in editor
                           q: abort (returns nothing)"""
                 elseif cmd == ' '
                     hdr.leveloffset = 0
@@ -261,6 +262,10 @@ function interpret(s)
                 elseif cmd == 'q'
                     hdr.val = nothing
                     break
+                elseif cmd == 'o'
+                    f, Δ = frameoffset(frame, hdr.leveloffset)
+                    file, line = whereis(f)
+                    edit(file, line)
                 elseif cmd == '\e'   # escape codes
                     nxtcmd = read(term, Char)
                     nxtcmd == "O" && (nxtcmd = '[')  # normalize escape code

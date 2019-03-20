@@ -1,6 +1,6 @@
 module Rebugger
 
-using UUIDs
+using UUIDs, InteractiveUtils
 using REPL
 import REPL.LineEdit, REPL.Terminals
 using REPL.LineEdit: buffer, bufend, content, edit_splice!
