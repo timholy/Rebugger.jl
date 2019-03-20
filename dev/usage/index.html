@@ -1,5 +1,144 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Usage · Rebugger.jl</title><link href="https://cdnjs.cloudflare.com/ajax/libs/normalize/4.2.0/normalize.min.css" rel="stylesheet" type="text/css"/><link href="https://fonts.googleapis.com/css?family=Lato|Roboto+Mono" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.6.3/css/font-awesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/styles/default.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.2.0/require.min.js" data-main="../assets/documenter.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link href="../assets/documenter.css" rel="stylesheet" type="text/css"/></head><body><nav class="toc"><h1>Rebugger.jl</h1><select id="version-selector" onChange="window.location.href=this.value" style="visibility: hidden"></select><form class="search" id="search-form" action="../search/"><input id="search-query" name="q" type="text" placeholder="Search docs"/></form><ul><li><a class="toctext" href="../">Home</a></li><li class="current"><a class="toctext" href>Usage</a><ul class="internal"><li><a class="toctext" href="#Stepping-in-1">Stepping in</a></li><li><a class="toctext" href="#Capturing-stacktraces-1">Capturing stacktraces</a></li><li><a class="toctext" href="#Important-notes-1">Important notes</a></li></ul></li><li><a class="toctext" href="../config/">Configuration</a></li><li><a class="toctext" href="../limitations/">Limitations</a></li><li><a class="toctext" href="../internals/">How Rebugger works</a></li><li><a class="toctext" href="../reference/">Developer reference</a></li></ul></nav><article id="docs"><header><nav><ul><li><a href>Usage</a></li></ul><a class="edit-page" href="https://github.com/timholy/Rebugger.jl/blob/master/docs/src/usage.md"><span class="fa"></span> Edit on GitHub</a></nav><hr/><div id="topbar"><span>Usage</span><a class="fa fa-bars" href="#"></a></div></header><h1><a class="nav-anchor" id="Usage-1" href="#Usage-1">Usage</a></h1><p>Rebugger works from Julia&#39;s native REPL prompt. Currently there are exactly two keybindings, which here will be described as:</p><ul><li>Meta-e, which maps to &quot;enter&quot; or &quot;step in&quot;</li><li>Meta-s, which maps to &quot;stacktrace&quot; (for commands that throw an error)</li></ul><p>Meta often maps to <code>Esc</code>, and if using <code>Esc</code> you should hit the two keys in sequence rather than simultaneously. For many users <code>Alt</code> (sometimes specifically <code>Left-Alt</code>, or <code>Option</code> on macs) may be more convenient, as it can be pressed simultaneously with the key.</p><p>Of course, you may have configured Rebugger to use different key bindings (see <a href="../config/#Customize-keybindings-1">Customize keybindings</a>).</p><h2><a class="nav-anchor" id="Stepping-in-1" href="#Stepping-in-1">Stepping in</a></h2><p>Select the expression you want to step into by positioning &quot;point&quot; (your cursor) at the desired location in the command line:</p><img src="../images/stepin1.png" width="160px"/><p>It&#39;s essential that point is at the very first character of the expression, in this case on the <code>s</code> in <code>show</code>.</p><div class="admonition note"><div class="admonition-title">Note</div><div class="admonition-text"><p>Don&#39;t confuse the REPL&#39;s cursor with your mouse pointer. Your mouse is essentially irrelevant on the REPL; use arrow keys or the other <a href="https://docs.julialang.org/en/latest/stdlib/REPL/">navigation features of Julia&#39;s REPL</a>.</p></div></div><p>Now if you hit Meta-e, you should see something like this:</p><img src="../images/stepin2.png" width="660px"/><p>(If not, check <a href="../#Keyboard-shortcuts-1">Keyboard shortcuts</a> and <a href="../config/#Customize-keybindings-1">Customize keybindings</a>.) The cyan &quot;Info&quot; line is an indication that the method you&#39;re stepping into is a function in Julia&#39;s Base module; this is shown by Revise (not Rebugger), and only happens once per session.</p><p>The remaining lines correspond to the Rebugger header and user input. The magenta line tells you which method you are stepping into. Indented blue line(s) show the value(s) of any input arguments or type parameters.</p><p>If you&#39;re following along, move your cursor to the next <code>show</code> call as illustrated above. Hit Meta-e again. You should see a new <code>show</code> method, this time with two input arguments.</p><p>Now let&#39;s demonstrate another important display item: position point at the beginning of the <code>_show_empty</code> call and hit Meta-e. The display should now look like this:</p><img src="../images/stepin3.png" width="690px"/><p>This time, note the yellow/orange line: this is a warning message, and you should pay attention to these. (You might also see red lines, which are generally more serious &quot;errors.&quot;) In this case execution never reached <code>_show_empty</code>, because it enters <code>show_vector</code> instead; if you moved your cursor there, you could trace execution more completely.</p><p>You can edit these expressions to insert code to display variables or test changes to the code. As an experiment, try stepping into the <code>show_vector</code> call from the example above and adding <code>@show limited</code> to display a local variable&#39;s value:</p><img src="../images/stepin4.png" width="800px"/><div class="admonition note"><div class="admonition-title">Note</div><div class="admonition-text"><p>When editing expressions, you can insert a blank line with Meta-Enter (i.e., Esc-Enter, Alt-Enter, or Option-Enter). See the many <a href="https://docs.julialang.org/en/latest/stdlib/REPL/#Key-bindings-1">advanced features of Julia&#39;s REPL</a> that allow you to efficiently edit these <code>let</code>-blocks.</p></div></div><p>Having illustrated the importance of &quot;point&quot; and the various colors used for messages from Rebugger, to ensure readability the remaining examples will be rendered as text.</p><h2><a class="nav-anchor" id="Capturing-stacktraces-1" href="#Capturing-stacktraces-1">Capturing stacktraces</a></h2><p>For a quick demo, we&#39;ll use the <code>Colors</code> package (<code>add</code> it if you don&#39;t have it) and deliberately choose a method that will end in an error: we&#39;ll try to parse a string as a Hue, Saturation, Lightness (HSL) color, except we&#39;ll &quot;forget&quot; that hue cannot be expressed as a percentage and deliberately trigger an error:</p><pre><code class="language-julia">julia&gt; using Colors
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Usage · Rebugger.jl</title><link href="https://cdnjs.cloudflare.com/ajax/libs/normalize/4.2.0/normalize.min.css" rel="stylesheet" type="text/css"/><link href="https://fonts.googleapis.com/css?family=Lato|Roboto+Mono" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.6.3/css/font-awesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/styles/default.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.2.0/require.min.js" data-main="../assets/documenter.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link href="../assets/documenter.css" rel="stylesheet" type="text/css"/></head><body><nav class="toc"><h1>Rebugger.jl</h1><select id="version-selector" onChange="window.location.href=this.value" style="visibility: hidden"></select><form class="search" id="search-form" action="../search/"><input id="search-query" name="q" type="text" placeholder="Search docs"/></form><ul><li><a class="toctext" href="../">Home</a></li><li class="current"><a class="toctext" href>Usage</a><ul class="internal"><li><a class="toctext" href="#Interpret-mode-1">Interpret mode</a></li><li><a class="toctext" href="#Edit-mode-1">Edit mode</a></li></ul></li><li><a class="toctext" href="../config/">Configuration</a></li><li><a class="toctext" href="../limitations/">Limitations</a></li><li><a class="toctext" href="../internals/">How Rebugger works</a></li><li><a class="toctext" href="../reference/">Developer reference</a></li></ul></nav><article id="docs"><header><nav><ul><li><a href>Usage</a></li></ul><a class="edit-page" href="https://github.com/timholy/Rebugger.jl/blob/master/docs/src/usage.md"><span class="fa"></span> Edit on GitHub</a></nav><hr/><div id="topbar"><span>Usage</span><a class="fa fa-bars" href="#"></a></div></header><h1><a class="nav-anchor" id="Usage-1" href="#Usage-1">Usage</a></h1><p>Rebugger works from Julia&#39;s native REPL prompt. Currently there are exactly three keybindings, which here will be described as:</p><ul><li>Meta-i, which maps to &quot;interpret&quot;</li><li>Meta-e, which maps to &quot;enter&quot; or &quot;step in&quot;</li><li>Meta-s, which maps to &quot;stacktrace&quot; (for commands that throw an error)</li></ul><p>Meta often maps to <code>Esc</code>, and if using <code>Esc</code> you should hit the two keys in sequence rather than simultaneously. For many users <code>Alt</code> (sometimes specifically <code>Left-Alt</code>, or <code>Option</code> on macs) may be more convenient, as it can be pressed simultaneously with the key.</p><p>Of course, you may have configured Rebugger to use different key bindings (see <a href="../config/#Customize-keybindings-1">Customize keybindings</a>).</p><h2><a class="nav-anchor" id="Interpret-mode-1" href="#Interpret-mode-1">Interpret mode</a></h2><p>Interpret mode simulates an IDE debugger at the REPL: rather than entering your commands into a special prompt, you use single keystrokes to quickly advance through the code.</p><p>Let&#39;s start with an example:</p><pre><code class="language-julia">julia&gt; using Rebugger
+
+julia&gt; a = [4, 1, 3, 2];</code></pre><p>Now we&#39;re going to call <code>sort</code>, but don&#39;t hit enter:</p><pre><code class="language-none">julia&gt; sort(a)</code></pre><p>Instead, hit Meta-i (Esc-i, Alt-i, or option-i):</p><pre><code class="language-none">interpret&gt; sort(a)[ Info: tracking Base
+
+sort(v::AbstractArray{T,1} where T) in Base.Sort at sort.jl:742
+  v = [4, 1, 3, 2]
+ 742  sort(v::AbstractVector; kws...) = begin
+ 742          sort!(copymutable(v); kws...)
+          end
+</code></pre><p>The message informs you that Revise (which is used by Rebugger) is now examining the code in Base to extract the definition of <code>sort</code>. There&#39;s a considerable pause the first time you do this, but later it should generally be faster.</p><p>After the &quot;Info&quot; line, you can see the method you called printed on top. After that are the local variables of <code>sort</code>, which here is just the array you supplied. (You can see some screenshots below in the &quot;edit mode&quot; section that show these in color. The meaning is the same here.) The &quot;742&quot; indicates the line number of &quot;sort.jl&quot;, where the <code>sort</code> method you&#39;re calling is defined. Finally, you&#39;ll see a representation of the definition itself. Rebugger typically shows you expressions rather than verbatim text; unlike the text in the original file,  this works equally well for <code>@eval</code>ed functions and generated functions.</p><p>The current line number is printed in yellow; here, that&#39;s both lines, since the original definition was written on a single line.</p><p>We can learn about the possibilities by typing <code>?</code>:</p><pre><code class="language-none">Commands:
+  space: next line
+  enter: continue to next breakpoint or completion
+      →: step in to next call
+      ←: finish frame and return to caller
+      ↑: display the caller frame
+      ↓: display the callee frame
+      b: insert breakpoint at current line
+      c: insert conditional breakpoint at current line
+      r: remove breakpoint at current line
+      d: disable breakpoint at current line
+      e: enable breakpoint at current line
+      q: abort (returns nothing)
+sort(v::AbstractArray{T,1} where T) in Base.Sort at sort.jl:742
+  v = [4, 1, 3, 2]
+ 742  sort(v::AbstractVector; kws...) = begin
+ 742          sort!(copymutable(v); kws...)
+          end</code></pre><p>Let&#39;s try stepping in to the call: hit the right arrow, at which point you should see</p><pre><code class="language-none">sort(v::AbstractArray{T,1} where T) in Base.Sort at sort.jl:742
+ #sort#8(kws, ::Any, v::AbstractArray{T,1} where T) in Base.Sort at sort.jl:742
+  #sort#8 = Base.Sort.#sort#8
+  kws = Base.Iterators.Pairs{Union{},Union{},Tuple{},NamedTuple{(),Tuple{}}}()
+  @_3 = sort
+  v = [4, 1, 3, 2]
+ 742  sort(v::AbstractVector; kws...) = begin
+ 742          sort!(copymutable(v); kws...)
+          end</code></pre><p>We&#39;re now in a &quot;hidden&quot; method <code>#sort#8</code>, generated automatically by Julia to handle keyword and/or optional arguments. This is what actually contains the main body of <code>sort</code>. You&#39;ll note the source expression hasn&#39;t changed, because it&#39;s generated from the same definition, but that some additional arguments (<code>kws</code> and the &quot;nameless argument&quot; <code>@_3</code>) have appeared.</p><p>If we hit the right arrow again, we enter <code>copymutable</code>. Our interest is in stepping further into <code>sort</code>, so we&#39;re not going to bother walking through <code>copymutable</code>; hit left arrow, which finishes the current frame and returns to the caller. This should return you to <code>#sort#8</code>. Then hit the right arrow again and you should be here:</p><pre><code class="language-none">sort(v::AbstractArray{T,1} where T) in Base.Sort at sort.jl:742
+ #sort#8(kws, ::Any, v::AbstractArray{T,1} where T) in Base.Sort at sort.jl:742
+  sort!(v::AbstractArray{T,1} where T) in Base.Sort at sort.jl:682
+   #sort!#7(alg::Base.Sort.Algorithm, lt, by, rev::Union{Nothing, Bool}, order::Base.Order.Ordering, ::Any, v::AbstractArray{T,1} where T) in Base.Sort at sort.jl:682
+  #sort!#7 = Base.Sort.#sort!#7
+  alg = Base.Sort.QuickSortAlg()
+  lt = isless
+  by = identity
+  rev = nothing
+  order = Base.Order.ForwardOrdering()
+  @_7 = sort!
+  v = [4, 1, 3, 2]
+ 681  function sort!(v::AbstractVector; alg::Algorithm=defalg(v), lt=isless, by=identity, re…
+ 682      ordr = ord(lt, by, rev, order)
+ 683      if ordr === Forward &amp;&amp; (v isa Vector &amp;&amp; eltype(v) &lt;: Integer)
+ 684          n = length(v)</code></pre><p>Now you can see many more arguments. To understand everything you&#39;re seeing, sometimes it may help to open the source file in an editor (hit &#39;o&#39; for open) for comparison.</p><p>Note that long function bodies are truncated; you only see a few lines around the current execution point.</p><p>Line 682 should be highlighted. Hit the space bar and you should advance to 683:</p><pre><code class="language-none">sort(v::AbstractArray{T,1} where T) in Base.Sort at sort.jl:742
+ #sort#8(kws, ::Any, v::AbstractArray{T,1} where T) in Base.Sort at sort.jl:742
+  sort!(v::AbstractArray{T,1} where T) in Base.Sort at sort.jl:682
+   #sort!#7(alg::Base.Sort.Algorithm, lt, by, rev::Union{Nothing, Bool}, order::Base.Order.Ordering, ::Any, v::AbstractArray{T,1} where T) in Base.Sort at sort.jl:682
+  #sort!#7 = Base.Sort.#sort!#7
+  alg = Base.Sort.QuickSortAlg()
+  lt = isless
+  by = identity
+  rev = nothing
+  order = Base.Order.ForwardOrdering()
+  @_7 = sort!
+  v = [4, 1, 3, 2]
+  ordr = Base.Order.ForwardOrdering()
+ 681  function sort!(v::AbstractVector; alg::Algorithm=defalg(v), lt=isless, by=identity, re…
+ 682      ordr = ord(lt, by, rev, order)
+ 683      if ordr === Forward &amp;&amp; (v isa Vector &amp;&amp; eltype(v) &lt;: Integer)
+ 684          n = length(v)
+ 685          if n &gt; 1</code></pre><p>You can see that the code display also advanced by one line.</p><p>Let&#39;s go forward one more line (hit space) and then hit <code>b</code> to insert a breakpoint:</p><pre><code class="language-none">sort(v::AbstractArray{T,1} where T) in Base.Sort at sort.jl:742
+ #sort#8(kws, ::Any, v::AbstractArray{T,1} where T) in Base.Sort at sort.jl:742
+  sort!(v::AbstractArray{T,1} where T) in Base.Sort at sort.jl:682
+   #sort!#7(alg::Base.Sort.Algorithm, lt, by, rev::Union{Nothing, Bool}, order::Base.Order.Ordering, ::Any, v::AbstractArray{T,1} where T) in Base.Sort at sort.jl:682
+  #sort!#7 = Base.Sort.#sort!#7
+  alg = Base.Sort.QuickSortAlg()
+  lt = isless
+  by = identity
+  rev = nothing
+  order = Base.Order.ForwardOrdering()
+  @_7 = sort!
+  v = [4, 1, 3, 2]
+  ordr = Base.Order.ForwardOrdering()
+  #temp# = true
+ 682      ordr = ord(lt, by, rev, order)
+ 683      if ordr === Forward &amp;&amp; (v isa Vector &amp;&amp; eltype(v) &lt;: Integer)
+b684          n = length(v)
+ 685          if n &gt; 1
+ 686              (min, max) = extrema(v)</code></pre><p>The <code>b</code> in the left column indicates an unconditional breakpoint; a <code>c</code> would indicate a conditional breakpoint.</p><p>At this point, hit Enter to finish the entire command (you should see the result printed at the REPL). Now let&#39;s run it again, by going back in the REPL history (hit the up arrow) and then hitting Meta-i again:</p><pre><code class="language-none">interpret&gt; sort(a)
+sort(v::AbstractArray{T,1} where T) in Base.Sort at sort.jl:742
+  v = [4, 1, 3, 2]
+ 742  sort(v::AbstractVector; kws...) = begin
+ 742          sort!(copymutable(v); kws...)
+          end</code></pre><p>We may be back at the beginning, but remember: we set a breakpoint. Hit Enter to let execution move forward:</p><pre><code class="language-none">interpret&gt; sort(a)
+sort(v::AbstractArray{T,1} where T) in Base.Sort at sort.jl:742
+ #sort#8(kws, ::Any, v::AbstractArray{T,1} where T) in Base.Sort at sort.jl:742
+  sort!(v::AbstractArray{T,1} where T) in Base.Sort at sort.jl:682
+   #sort!#7(alg::Base.Sort.Algorithm, lt, by, rev::Union{Nothing, Bool}, order::Base.Order.Ordering, ::Any, v::AbstractArray{T,1} where T) in Base.Sort at sort.jl:682
+  #sort!#7 = Base.Sort.#sort!#7
+  alg = Base.Sort.QuickSortAlg()
+  lt = isless
+  by = identity
+  rev = nothing
+  order = Base.Order.ForwardOrdering()
+  @_7 = sort!
+  v = [4, 1, 3, 2]
+  ordr = Base.Order.ForwardOrdering()
+  #temp# = true
+ 682      ordr = ord(lt, by, rev, order)
+ 683      if ordr === Forward &amp;&amp; (v isa Vector &amp;&amp; eltype(v) &lt;: Integer)
+b684          n = length(v)
+ 685          if n &gt; 1
+ 686              (min, max) = extrema(v)</code></pre><p>We&#39;re right back at that breakpoint again.</p><p>Let&#39;s illustrate another example, this time in the context of errors:</p><pre><code class="language-none">julia&gt; convert(UInt, -8)
+ERROR: InexactError: check_top_bit(Int64, -8)
+Stacktrace:
+ [1] throw_inexacterror(::Symbol, ::Any, ::Int64) at ./boot.jl:583
+ [2] check_top_bit at ./boot.jl:597 [inlined]
+ [3] toUInt64 at ./boot.jl:708 [inlined]
+ [4] Type at ./boot.jl:738 [inlined]
+ [5] convert(::Type{UInt64}, ::Int64) at ./number.jl:7
+ [6] top-level scope at none:0</code></pre><p>Rebugger re-exports <a href="https://juliadebug.github.io/JuliaInterpreter.jl/stable/">JuliaInterpreter&#39;s breakpoint manipulation utilities</a>. Let&#39;s turn on breakpoints any time an (uncaught) exception is thrown:</p><pre><code class="language-none">julia&gt; break_on(:error)</code></pre><p>Now repeat that <code>convert</code> line but hit Meta-i instead of Enter:</p><pre><code class="language-none">interpret&gt; convert(UInt, -8)
+convert(::Type{T}, x::Number) where T&lt;:Number in Base at number.jl:7
+  #unused# = UInt64
+  x = -8
+  T = UInt64
+ 7  (convert(::Type{T}, x::Number) where T &lt;: Number) = begin
+ 7          T(x)
+        end</code></pre><p>Now if you hit Enter, you&#39;ll be at the place where the error was thrown:</p><pre><code class="language-none">
+interpret&gt; convert(UInt, -8)
+convert(::Type{T}, x::Number) where T&lt;:Number in Base at number.jl:7
+ UInt64(x::Union{Bool, Int32, Int64, UInt32, UInt64, UInt8, Int128, Int16, Int8, UInt128, UInt16}) in Core at boot.jl:738
+  toUInt64(x::Int64) in Core at boot.jl:708
+   check_top_bit(x) in Core at boot.jl:596
+    throw_inexacterror(f::Symbol, T, val) in Core at boot.jl:583
+  f = check_top_bit
+  T = Int64
+  val = -8
+ 583  throw_inexacterror(f::Symbol, @nospecialize(T), val) = (@_noinline_meta; throw(Inexact…</code></pre><p>Try using the up and down arrows to navigate up and down the call stack. This doesn&#39;t change the notion of current execution point (that&#39;s still at that <code>throw_inexacterror</code> call above), but it does let you see where you came from.</p><p>You can turn this off with <code>break_off</code> and clear all manually-set breakpoints with <code>remove()</code>.</p><h3><a class="nav-anchor" id="A-few-important-details-1" href="#A-few-important-details-1">A few important details</a></h3><p>There are some calls that you can&#39;t step into: most of these are the &quot;builtins,&quot; &quot;intrinsics,&quot; and &quot;ccalls&quot; that lie at Julia&#39;s lowest level. Here&#39;s an example from hitting Meta-i on <code>show</code>:</p><pre><code class="language-none">interpret&gt; show([1,2,4])
+show(x) in Base at show.jl:313
+  x = [1, 2, 4]
+ 313  show(x) = begin
+ 313          show(stdout::IO, x)
+          end
+</code></pre><p>That looks like a call you&#39;d want to step into. But if you hit the right arrow, apparently nothing happens. That&#39;s because the next statement is actually that type-assertion <code>stdout::IO</code>. <code>typeassert</code> is a builtin, and consequently not a call you can step into.</p><p>When in doubt, just repeat the same keystroke; here, the second press of the right arrow takes you to the two-argument <code>show</code> method that you probably thought you were descending into.</p><h2><a class="nav-anchor" id="Edit-mode-1" href="#Edit-mode-1">Edit mode</a></h2><h3><a class="nav-anchor" id="Stepping-in-1" href="#Stepping-in-1">Stepping in</a></h3><p>Select the expression you want to step into by positioning &quot;point&quot; (your cursor) at the desired location in the command line:</p><img src="../images/stepin1.png" width="160px"/><p>It&#39;s essential that point is at the very first character of the expression, in this case on the <code>s</code> in <code>show</code>.</p><div class="admonition note"><div class="admonition-title">Note</div><div class="admonition-text"><p>Don&#39;t confuse the REPL&#39;s cursor with your mouse pointer. Your mouse is essentially irrelevant on the REPL; use arrow keys or the other <a href="https://docs.julialang.org/en/latest/stdlib/REPL/">navigation features of Julia&#39;s REPL</a>.</p></div></div><p>Now if you hit Meta-e, you should see something like this:</p><img src="../images/stepin2.png" width="660px"/><p>(If not, check <a href="../#Keyboard-shortcuts-1">Keyboard shortcuts</a> and <a href="../config/#Customize-keybindings-1">Customize keybindings</a>.) The cyan &quot;Info&quot; line is an indication that the method you&#39;re stepping into is a function in Julia&#39;s Base module; this is shown by Revise (not Rebugger), and only happens once per session.</p><p>The remaining lines correspond to the Rebugger header and user input. The magenta line tells you which method you are stepping into. Indented blue line(s) show the value(s) of any input arguments or type parameters.</p><p>If you&#39;re following along, move your cursor to the next <code>show</code> call as illustrated above. Hit Meta-e again. You should see a new <code>show</code> method, this time with two input arguments.</p><p>Now let&#39;s demonstrate another important display item: position point at the beginning of the <code>_show_empty</code> call and hit Meta-e. The display should now look like this:</p><img src="../images/stepin3.png" width="690px"/><p>This time, note the yellow/orange line: this is a warning message, and you should pay attention to these. (You might also see red lines, which are generally more serious &quot;errors.&quot;) In this case execution never reached <code>_show_empty</code>, because it enters <code>show_vector</code> instead; if you moved your cursor there, you could trace execution more completely.</p><p>You can edit these expressions to insert code to display variables or test changes to the code. As an experiment, try stepping into the <code>show_vector</code> call from the example above and adding <code>@show limited</code> to display a local variable&#39;s value:</p><img src="../images/stepin4.png" width="800px"/><div class="admonition note"><div class="admonition-title">Note</div><div class="admonition-text"><p>When editing expressions, you can insert a blank line with Meta-Enter (i.e., Esc-Enter, Alt-Enter, or Option-Enter). See the many <a href="https://docs.julialang.org/en/latest/stdlib/REPL/#Key-bindings-1">advanced features of Julia&#39;s REPL</a> that allow you to efficiently edit these <code>let</code>-blocks.</p></div></div><p>Having illustrated the importance of &quot;point&quot; and the various colors used for messages from Rebugger, to ensure readability the remaining examples will be rendered as text.</p><h3><a class="nav-anchor" id="Capturing-stacktraces-in-edit-mode-1" href="#Capturing-stacktraces-in-edit-mode-1">Capturing stacktraces in edit mode</a></h3><p>For a quick demo, we&#39;ll use the <code>Colors</code> package (<code>add</code> it if you don&#39;t have it) and deliberately choose a method that will end in an error: we&#39;ll try to parse a string as a Hue, Saturation, Lightness (HSL) color, except we&#39;ll &quot;forget&quot; that hue cannot be expressed as a percentage and deliberately trigger an error:</p><pre><code class="language-julia">julia&gt; using Colors
 
 julia&gt; colorant&quot;hsl(80%, 20%, 15%)&quot;
 ERROR: LoadError: hue cannot end in %
@@ -36,6 +175,7 @@ Captured elements of stacktrace:
 [2] _parse_colorant(desc::AbstractString) in Colors at /home/tim/.julia/packages/Colors/4hvzi/src/parse.jl:51
 [3] _parse_colorant(::Type{C}, ::Type{SUP}, desc::AbstractString) where {C&lt;:Colorant, SUP} in Colors at /home/tim/.julia/packages/Colors/4hvzi/src/parse.jl:112
 [4] parse(::Type{C}, desc::AbstractString) where C&lt;:Colorant in Colors at /home/tim/.julia/packages/Colors/4hvzi/src/parse.jl:140
+[5] @colorant_str(__source__::LineNumberNode, __module__::Module, ex) in Colors at /home/tim/.julia/packages/Colors/4hvzi/src/parse.jl:146
 _parse_colorant(::Type{C}, ::Type{SUP}, desc::AbstractString) where {C&lt;:Colorant, SUP} in Colors at /home/tim/.julia/packages/Colors/4hvzi/src/parse.jl:112
   C = Colorant
   SUP = Any
@@ -44,7 +184,7 @@ rebug&gt; @eval Colors let (C, SUP, desc) = Main.Rebugger.getstored(&quot;57d9eb
        begin
            _parse_colorant(desc)
        end
-       end</code></pre><p>You can hit the down arrow and go back to earlier entries in the trace. Alternatively, you can pick any of these expressions to execute (hit Enter) or edit before execution. You can use the REPL history to test the results of many different changes to the same &quot;method&quot;; the &quot;method&quot; will be run with the same inputs each time.</p><div class="admonition note"><div class="admonition-title">Note</div><div class="admonition-text"><p>When point is at the end of the input, the up and down arrows step through the history. But if you move point into the method body (e.g., by using left-arrow), the up and down arrows move within the method body. If you&#39;ve entered edit mode, you can go back to history mode using PgUp and PgDn.</p></div></div><h2><a class="nav-anchor" id="Important-notes-1" href="#Important-notes-1">Important notes</a></h2><h3><a class="nav-anchor" id="&quot;Missing&quot;-methods-from-stacktraces-1" href="#&quot;Missing&quot;-methods-from-stacktraces-1">&quot;Missing&quot; methods from stacktraces</a></h3><p>In the example above, you may have noticed the warning about the <code>@colorant_str</code> macro being omitted from the &quot;captured&quot; (interactive) expressions comprising the stacktrace. Macros are not traced.</p><p>When many methods use keyword arguments, the apparent difference between the &quot;real&quot; stacktrace and the &quot;captured&quot; stacktrace can be quite dramatic:</p><pre><code class="language-julia">julia&gt; using Pkg
+       end</code></pre><p>You can hit the down arrow and go back to earlier entries in the trace. Alternatively, you can pick any of these expressions to execute (hit Enter) or edit before execution. You can use the REPL history to test the results of many different changes to the same &quot;method&quot;; the &quot;method&quot; will be run with the same inputs each time.</p><div class="admonition note"><div class="admonition-title">Note</div><div class="admonition-text"><p>When point is at the end of the input, the up and down arrows step through the history. But if you move point into the method body (e.g., by using left-arrow), the up and down arrows move within the method body. If you&#39;ve entered edit mode, you can go back to history mode using PgUp and PgDn.</p></div></div><h3><a class="nav-anchor" id="Important-notes-1" href="#Important-notes-1">Important notes</a></h3><h4><a class="nav-anchor" id="&quot;Missing&quot;-methods-from-stacktraces-1" href="#&quot;Missing&quot;-methods-from-stacktraces-1">&quot;Missing&quot; methods from stacktraces</a></h4><p>Sometimes, there&#39;s a large difference between the &quot;real&quot; stacktrace and the &quot;captured&quot; stacktrace:</p><pre><code class="language-julia">julia&gt; using Pkg
 
 julia&gt; Pkg.add(&quot;NoPkg&quot;)
   Updating registry at `~/.julia/registries/General`
@@ -69,16 +209,18 @@ Stacktrace:
  [14] top-level scope at none:0
 
 julia&gt; Pkg.add(&quot;NoPkg&quot;)  # hit Meta-s here
-Captured elements of stacktrace:
-[1] pkgerror(msg::String...) in Pkg.Types at /home/tim/src/julia-1.0/usr/share/julia/stdlib/v1.0/Pkg/src/Types.jl:120
-[2] add(args...) in Pkg.API at /home/tim/src/julia-1.0/usr/share/julia/stdlib/v1.0/Pkg/src/API.jl:69
-pkgerror(msg::String...) in Pkg.Types at /home/tim/src/julia-1.0/usr/share/julia/stdlib/v1.0/Pkg/src/Types.jl:120
+[1] pkgerror(msg::String...) in Pkg.Types at /home/tim/src/julia-1/usr/share/julia/stdlib/v1.1/Pkg/src/Types.jl:120
+[2] #ensure_resolved#72(registry::Bool, ::Any, env::Pkg.Types.EnvCache, pkgs::AbstractArray{Pkg.Types.PackageSpec,1}) in Pkg.Types at /home/tim/src/julia-1/usr/share/julia/stdlib/v1.1/Pkg/src/Types.jl:981
+[3] #add_or_develop#15(mode::Symbol, shared::Bool, kwargs, ::Any, ctx::Pkg.Types.Context, pkgs::Array{Pkg.Types.PackageSpec,1}) in Pkg.API at /home/tim/src/julia-1/usr/share/julia/stdlib/v1.1/Pkg/src/API.jl:34
+[4] #add_or_develop#12(kwargs, ::Any, pkg::Union{AbstractString, PackageSpec}) in Pkg.API at /home/tim/src/julia-1/usr/share/julia/stdlib/v1.1/Pkg/src/API.jl:28
+[5] add(args...) in Pkg.API at /home/tim/src/julia-1/usr/share/julia/stdlib/v1.1/Pkg/src/API.jl:59
+pkgerror(msg::String...) in Pkg.Types at /home/tim/src/julia-1/usr/share/julia/stdlib/v1.1/Pkg/src/Types.jl:120
   msg = (&quot;The following package names could not be resolved:\n * NoPkg (not found in project, manifest or registry)\nPlease specify by known `name=uuid`.&quot;,)
-rebug&gt; @eval Pkg.Types let (msg,) = Main.Rebugger.getstored(&quot;161c53ba-0dfe-11e9-0f8f-59f468aec692&quot;)
+rebug&gt; @eval Pkg.Types let (msg,) = Main.Rebugger.getstored(&quot;1ac42628-4b15-11e9-28e7-33f71870bf31&quot;)
        begin
            throw(PkgError(join(msg)))
        end
-       end</code></pre><p>Note that only two methods got captured but the stacktrace is much longer. Most of these methods, however, start with <code>#</code>, an indication that they are generated (keyword-handling) methods rather than ones that appear directly in the source code. For now, Rebugger omits these entries. However, you can enter (i.e., Meta-e) such methods from one that is higher in the stack trace.</p><h3><a class="nav-anchor" id="Modified-&quot;signatures&quot;-1" href="#Modified-&quot;signatures&quot;-1">Modified &quot;signatures&quot;</a></h3><p>Some &quot;methods&quot; you see in the <code>let</code> block on the command line will have their &quot;signatures&quot; slightly modified. For example:</p><pre><code class="language-julia">julia&gt; dest = zeros(3);
+       end</code></pre><p>Note that only five methods got captured but the stacktrace is much longer. Most of these methods, however, say &quot;inlined&quot; with line number 0. Rebugger has no way of finding such methods. However, you can enter (i.e., Meta-e) such methods from one that is higher in the stack trace.</p><h4><a class="nav-anchor" id="Modified-&quot;signatures&quot;-1" href="#Modified-&quot;signatures&quot;-1">Modified &quot;signatures&quot;</a></h4><p>Some &quot;methods&quot; you see in the <code>let</code> block on the command line will have their &quot;signatures&quot; slightly modified. For example:</p><pre><code class="language-julia">julia&gt; dest = zeros(3);
 
 julia&gt; copyto!(dest, 1:4)
 ERROR: BoundsError: attempt to access 3-element Array{Float64,1} at index [1, 2, 3, 4]
@@ -105,4 +247,4 @@ rebug&gt; @eval Base let (__IndexStyle_1, dest, __IndexStyle_2, src) = Main.Rebu
                end
            return dest
        end
-       end</code></pre><p>Note that this <code>copyto!</code> method contains two anonymous arguments annotated <code>::IndexStyle</code>. Rebugger will make up names for these arguments (here <code>__IndexStyle_1</code> and <code>__IndexStyle_2</code>). While these will be distinct from one another, Rebugger does not check whether they conflict with any internal names.</p><div class="admonition note"><div class="admonition-title">Note</div><div class="admonition-text"><p>This example illustrates a second important point: you may have noticed that this one was considerably slower to print. That&#39;s because capturing stacktraces overwrites the methods involved. Since <code>copyto!</code> is widely used, this forces recompilation of a lot of methods in Base.</p><p>In contrast with capturing stacktraces, stepping in does not overwrite methods, so is sometimes preferred.</p></div></div><footer><hr/><a class="previous" href="../"><span class="direction">Previous</span><span class="title">Home</span></a><a class="next" href="../config/"><span class="direction">Next</span><span class="title">Configuration</span></a></footer></article></body></html>
+       end</code></pre><p>Note that this <code>copyto!</code> method contains two anonymous arguments annotated <code>::IndexStyle</code>. Rebugger will make up names for these arguments (here <code>__IndexStyle_1</code> and <code>__IndexStyle_2</code>). While these will be distinct from one another, Rebugger does not check whether they conflict with any internal names.</p><div class="admonition note"><div class="admonition-title">Note</div><div class="admonition-text"><p>This example illustrates a second important point: you may have noticed that this one was considerably slower to print. That&#39;s because capturing stacktraces overwrites the methods involved. Since <code>copyto!</code> is widely used, this forces recompilation of a lot of methods in Base.</p><p>In contrast with capturing stacktraces, stepping in (Meta-e) does not overwrite methods, so is sometimes preferred. And of course, interpret mode (Meta-i) also doesn&#39;t overwrite methods.</p></div></div><footer><hr/><a class="previous" href="../"><span class="direction">Previous</span><span class="title">Home</span></a><a class="next" href="../config/"><span class="direction">Next</span><span class="title">Configuration</span></a></footer></article></body></html>
