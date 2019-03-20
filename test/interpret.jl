@@ -41,6 +41,9 @@ end
     # Unparsed methods
     frame = JuliaInterpreter.enter_call(getline, LineNumberNode(0, Symbol("fake.jl")))
     frame, pc = debug_command(frame, :si)
-    linenos, line1, methlines = Rebugger.expression_lines(frame)
-    @test linenos == [JuliaInterpreter.scopeof(frame).line]
+    m = JuliaInterpreter.scopeof(frame)
+    if m.file == Symbol("sysimg.jl")  # sysimg.jl is excluded from Revise tracking
+        linenos, line1, methlines = Rebugger.expression_lines(frame)
+        @test linenos == [m.line]
+    end
 end
