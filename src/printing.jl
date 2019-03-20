@@ -1,21 +1,26 @@
 # A type for keeping track of the current line number when printing Exprs
 struct LineNumberIO <: IO
     io::IO
-    linenos::Vector{Union{Missing,Int}}
-    file::Symbol
+    linenos::Vector{Union{Missing,Int}} # source line number for each printed line of the Expr
+    file::Symbol   # used to avoid confusion when we are in expanded macros
 end
 
 LineNumberIO(io::IO, line::Integer, file::Symbol) = LineNumberIO(io, Union{Missing,Int}[line], file)
 LineNumberIO(io::IO, line::Integer, file::AbstractString) = LineNumberIO(io, line, Symbol(file))
 
+# Instead of printing the source line number to `io.io`, associate it with the
+# corresponding line of the printout
 function Base.show_linenumber(io::LineNumberIO, line, file)
     if file == io.file
         # Count how many newlines we've encountered
         data = io.io.data
-        nlines = count(isequal(UInt8('\n')), data) + 1
+        nlines = count(isequal(UInt8('\n')), data) + 1 # TODO: O(N^2), optimize? See below
+        # If there have been more printed lines than assigned line numbers, fill
+        # with `missing`
         while nlines > length(io.linenos)
             push!(io.linenos, missing)
         end
+        # Record this line number
         io.linenos[nlines] = line
     end
     return nothing
@@ -23,15 +28,17 @@ end
 Base.show_linenumber(io::LineNumberIO, line, ::Nothing) = nothing
 Base.show_linenumber(io::LineNumberIO, line) = nothing
 
+# TODO? intercept `\n` here and break the result up into lines at writing time?
 Base.write(io::LineNumberIO, x::UInt8) = write(io.io, x)
 
-# const linefree = r"\s*(end|else|catch)"
+# See docstring below
 function expression_lines(method::Method)
     def = definition(method)
     if def === nothing
+        # If the expression is not available, use the source text. This happens for methods in e.g., boot.jl.
         src, line1 = definition(String, method)
-        srclines = split(chomp(src), '\n')
-        return Vector(range(Int(line1), length=length(srclines))), line1, srclines
+        methstrings = split(chomp(src), '\n')
+        return Vector(range(Int(line1), length=length(methstrings))), line1, methstrings
     end
     # We'll use the file in LineNumberNodes to make sure line numbers refer to the "outer"
     # method (and does not get confused by macros etc). Because of symlinks and non-normalized paths,
@@ -42,67 +49,119 @@ function expression_lines(method::Method)
     io = LineNumberIO(buf, method.line, mfile) # deliberately using the in-method numbering
     print(io, def)
     seek(buf, 0)
-    methlines = readlines(buf)
+    methstrings = readlines(buf)
     linenos = io.linenos
-    while length(linenos) < length(methlines)
+    while length(linenos) < length(methstrings)
         push!(linenos, missing)
     end
-    if startswith(methlines[1], ":(")
-        methlines[1] = methlines[1][3:end]
-        methlines[end] = methlines[end][1:end-1]
+    if startswith(methstrings[1], ":(")
+        # Chop off the Expr-quotes from the printing
+        methstrings[1] = methstrings[1][3:end]
+        methstrings[end] = methstrings[end][1:end-1]
     end
-    startswith(methlines[1], "function") && (linenos[1] -= 1)
+    # If it prints with `function`, adjust numbering for the signature line
+    # Note that this works independently of whether it's written as an `=` method
+    # in the source code (the contents of that line may not be the same but that's
+    # true quite generally)
+    startswith(methstrings[1], "function") && (linenos[1] -= 1)
     @assert issorted(skipmissing(linenos))
-    keeplinenos, keepsrc = Union{Missing,Int}[], String[]
-    for (i, line) in enumerate(methlines)
+    # Strip out blank lines from the printed expression
+    # These arise from the fact that we intercepted the printing of LineNumberNodes
+    keeplinenos, keepstrings = Union{Missing,Int}[], String[]
+    for (i, line) in enumerate(methstrings)
         if !all(isspace, line)
-            push!(keepsrc, line)
+            push!(keepstrings, line)
             ln = linenos[i]
             if ismissing(ln) && i > 1
-                # Deliberately go back only one entry
+                # Line numbers get associated with the missing LineNumberNodes rather than
+                # the succeeding expression line. Thus we look to the previous entry.
+                # Deliberately go back only one entry.
                 ln = linenos[i-1]
             end
             push!(keeplinenos, ln)
         end
     end
-    # Fill in missing lines where possible
-    for i = 2:length(keeplinenos)-1
-        if ismissing(keeplinenos[i])
-            skip2 = keeplinenos[i-1] + 2 == keeplinenos[i+1]
-            if !ismissing(skip2) && skip2
-                keeplinenos[i] = keeplinenos[i-1] + 1
+    linenos, methstrings = keeplinenos, keepstrings
+    # Fill in missing lines where possible. There is no line info for things like
+    # `end`, `catch` and similar; these are subsumed by the block structure.
+    # So we try to assign line numbers to these missing elements.
+    # However, source text like
+    #   for i = 1:5 s += i end
+    # and
+    #   for i = 1:5 s += i
+    #   end
+    # and
+    #   for i = 1:5
+    #       s +=i
+    #   end
+    # all get printed in the latter format---so the matching will work only under
+    # certain conditions.
+    lastknown = 1
+    for i = 2:length(linenos)-1
+        if ismissing(linenos[i])
+            if !ismissing(linenos[i+1])
+                # Process the previous block of missing statements
+                # If the printout has advanced by the same number of lines as the source,
+                # we know what the answer must be.
+                Δidx = i+1 - lastknown
+                Δsrc = linenos[i+1] - linenos[lastknown]
+                if Δsrc == Δidx
+                    for j = lastknown+1:i
+                        linenos[j] = linenos[j-1] + 1
+                    end
+                end
             end
+        else
+            lastknown = i
         end
     end
     _, line1 = whereis(method)
-    return keeplinenos, line1, keepsrc
+    return linenos, line1, keepstrings
 end
 
+"""
+    linenos, line1, methstrings = expression_lines(frame)
+
+Compute the source lines associated with each printed line of the expression
+associated with the method executed in `frame`.
+`methstrings` is a vector of strings, one per line of the expression.
+`linenos` is a vector in 1-to-1 correspondence with `methstrings`,
+ containing either the *compiled* line number or `missing`
+if the line number is not available. `line1` contains the *actual* (current) line
+number of the first line of the method body.
+"""
 function expression_lines(frame::Frame)
     m = scopeof(frame)
     mlinenos, line1, msrc = expression_lines(m)
     isdefined(m, :generator) || return mlinenos, line1, msrc
-    # For a generated function, call the generator to get the expression
+    # The rest of this is specific to generated functions.
+    # Call the generator to get the expression. First we have to build up the arguments.
     g = m.generator
     gg = g.gen
     vars = JuliaInterpreter.locals(frame)
     ggargs = []
+    # Static parameters come first
     for v in vars
         v.isparam || continue
         push!(ggargs, v.value)
     end
+    # Slots are next. Naturally, the generator takes only their types, not their values.
     for v in vars
         v.isparam && continue
         push!(ggargs, JuliaInterpreter._Typeof(v.value))
     end
+    # Call the generator
     def = gg(ggargs...)
-    # Wrap in a function to get indentation
+    # `def` contains just the body. Wrap in a `function` to ensure proper indentation,
+    # and then print it.
     def = Expr(:function, :(generatedtmp()), def)
     buf = IOBuffer()
-    print(buf, def)  # there are no linenos
+    print(buf, def)  # there are no linenos, so no need for LineNumberIO
     seek(buf, 0)
     glines = readlines(buf)
+    # Extract the signature line from `msrc`, and paste the body in
     gsrc = [msrc[1]; glines[2:end]]
+    # Assign line numbers. Other than the first line, there *aren't* any, so use `missing`
     linenos = [mlinenos[1]; fill(missing, length(gsrc)-1)]
     return linenos, line1, gsrc
 end
