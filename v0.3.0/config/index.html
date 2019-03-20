@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Configuration · Rebugger.jl</title><link href="https://cdnjs.cloudflare.com/ajax/libs/normalize/4.2.0/normalize.min.css" rel="stylesheet" type="text/css"/><link href="https://fonts.googleapis.com/css?family=Lato|Roboto+Mono" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.6.3/css/font-awesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/styles/default.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.2.0/require.min.js" data-main="../assets/documenter.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link href="../assets/documenter.css" rel="stylesheet" type="text/css"/></head><body><nav class="toc"><h1>Rebugger.jl</h1><select id="version-selector" onChange="window.location.href=this.value" style="visibility: hidden"></select><form class="search" id="search-form" action="../search/"><input id="search-query" name="q" type="text" placeholder="Search docs"/></form><ul><li><a class="toctext" href="../">Home</a></li><li><a class="toctext" href="../usage/">Usage</a></li><li class="current"><a class="toctext" href>Configuration</a><ul class="internal"><li><a class="toctext" href="#Run-on-REPL-startup-1">Run on REPL startup</a></li><li><a class="toctext" href="#Customize-keybindings-1">Customize keybindings</a></li></ul></li><li><a class="toctext" href="../limitations/">Limitations</a></li><li><a class="toctext" href="../internals/">How Rebugger works</a></li><li><a class="toctext" href="../reference/">Developer reference</a></li></ul></nav><article id="docs"><header><nav><ul><li><a href>Configuration</a></li></ul><a class="edit-page" href="https://github.com/timholy/Rebugger.jl/blob/master/docs/src/config.md"><span class="fa"></span> Edit on GitHub</a></nav><hr/><div id="topbar"><span>Configuration</span><a class="fa fa-bars" href="#"></a></div></header><h1><a class="nav-anchor" id="Configuration-1" href="#Configuration-1">Configuration</a></h1><h2><a class="nav-anchor" id="Run-on-REPL-startup-1" href="#Run-on-REPL-startup-1">Run on REPL startup</a></h2><p>If you decide you like Rebugger, you can add lines such as the following to your <code>~/.julia/config/startup.jl</code> file:</p><pre><code class="language-julia">atreplinit() do repl
+    try
+        @eval using Revise
+        @async Revise.wait_steal_repl_backend()
+    catch
+        @warn &quot;Could not load Revise.&quot;
+    end
+
+    try
+        @eval using Rebugger
+    catch
+        @warn &quot;Could not load Rebugger.&quot;
+    end
+end</code></pre><h2><a class="nav-anchor" id="Customize-keybindings-1" href="#Customize-keybindings-1">Customize keybindings</a></h2><p>As described in <a href="../#Keyboard-shortcuts-1">Keyboard shortcuts</a>, it&#39;s possible that Rebugger&#39;s default keybindings don&#39;t work for you. You can work around problems by changing them to keys of your own choosing.</p><p>To add your own keybindings, use <code>Rebugger.add_keybindings(action=keybinding, ...)</code>. This can be done during a running Rebugger session. Here is an example that maps the &quot;step in&quot; action to the key &quot;F6&quot; and &quot;capture stacktrace&quot; to &quot;F7&quot;</p><pre><code class="language-julia">julia&gt; Rebugger.add_keybindings(stepin=&quot;\e[17~&quot;, stacktrace=&quot;\e[18~&quot;)</code></pre><p>To make your keybindings permanent, change the &quot;Rebugger&quot; section of your <code>startup.jl</code> file to something like:</p><pre><code class="language-julia">atreplinit() do repl
+    ...
+
+    try
+        @eval using Rebugger
+        # Activate Rebugger&#39;s key bindings
+        Rebugger.keybindings[:stepin] = &quot;\e[17~&quot;      # Add the keybinding F6 to step into a function.
+        Rebugger.keybindings[:stacktrace] = &quot;\e[18~&quot;  # Add the keybinding F7 to capture a stacktrace.
+    catch
+        @warn &quot;Could not load Rebugger.&quot;
+    end
+end</code></pre><div class="admonition note"><div class="admonition-title">Note</div><div class="admonition-text"><p>Besides the obvious, one reason to insert the keybindings into the <code>startup.jl</code>, has to do with the order in which keybindings are added to the REPL and whether any &quot;stale&quot; bindings that might have side effects are still present. Doing it before <code>atreplinit</code> means that there won&#39;t be any stale bindings.</p></div></div><p>But how to find out the cryptic string that corresponds to the keybinding you want? Use Julia&#39;s <code>read()</code> function:</p><pre><code class="language-julia">julia&gt; str = read(stdin, String)
+^[[17~&quot;\e[17~&quot;  # Press F6, followed by Ctrl+D, Ctrl+D
+
+julia&gt; str
+&quot;\e[17~&quot;</code></pre><p>After calling <code>read()</code>, press the keybinding that you want. Then, press <code>Ctrl+D</code> twice to terminate the input. The value of <code>str</code> is the cryptic string you are looking for.</p><p>If you want to know whether your key binding is already taken, the <a href="https://docs.julialang.org/en/latest/stdlib/REPL/#Key-bindings-1">REPL documentation</a> as well as any documentation on your operating system, desktop environment, and/or terminal program can be useful references.</p><footer><hr/><a class="previous" href="../usage/"><span class="direction">Previous</span><span class="title">Usage</span></a><a class="next" href="../limitations/"><span class="direction">Next</span><span class="title">Limitations</span></a></footer></article></body></html>
