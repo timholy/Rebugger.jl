@@ -16,8 +16,11 @@ The name "Rebugger" has 3 meanings:
 
 
 ### JuliaCon 2018 Talk 
-Click image below to open in YouTube:   
+
+While it's somewhat dated, you can learn about the "edit" interface in the following video:
 [![](https://img.youtube.com/vi/KuM0AGaN09s/0.jpg)](https://youtu.be/KuM0AGaN09s?t=515)
+
+However, the "interpret" interface is recommended for most users.
 
 ## Installation and usage
 
@@ -30,9 +33,10 @@ Note that Rebugger may benefit from custom configuration, as described in the do
 
 In terms of usage, very briefly
 
-- "step in" is achieved by positioning your cursor in your input line to the beginning of
+- for "interpret" mode, type your command and hit <kbd> Meta-i </kbd> (which stands for "interpret")
+- for "edit" mode, "step in" is achieved by positioning your cursor in your input line to the beginning of
   the call expression you wish to descend into. Then hit <kbd> Meta-e </kbd> ("enter").
-- for an expression that generates an error, hit <kbd> Meta-s </kbd> ("stacktrace")
+- also for "edit" mode, for an expression that generates an error, hit <kbd> Meta-s </kbd> ("stacktrace")
   to capture the stacktrace and populate your REPL history with a sequence of expressions
   that contain the method bodies of the calls in the stacktrace.
 
