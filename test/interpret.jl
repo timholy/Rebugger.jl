@@ -46,4 +46,13 @@ end
         linenos, line1, methlines = Rebugger.expression_lines(frame)
         @test linenos == [m.line]
     end
+
+    # Internal macros (issue #63)
+    frame = JuliaInterpreter.enter_call(f63)
+    deflines = Rebugger.expression_lines(frame)
+    frame, pc = debug_command(frame, :n)
+    io = IOBuffer()
+    Rebugger.show_code(io, frame, deflines, 0)
+    str = String(take!(io))
+    @test occursin("y = 7", str)
 end

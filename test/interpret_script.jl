@@ -35,3 +35,9 @@ call_generated1(ndims) = generated1(fill(0, ntuple(d->1, ndims)...), 7)
 
 # getproperty is defined in sysimg.jl
 getline(lnn) = lnn.line
+
+function f63()
+    x = 1 + 1
+    @info "hello"
+    y = 7
+end

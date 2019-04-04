@@ -173,7 +173,7 @@ function show_code(term, frame, deflines, nlines)
     offset = line1 - method.line           # compiled + offset -> current
     known_linenos = skipmissing(linenos)
     nd = isempty(known_linenos) ? 0 : ndigits(offset + maximum(known_linenos))
-    line = JuliaInterpreter.linenumber(frame)    # this is in "compiled" numbering
+    line = linenumber_unexpanded(frame)    # this is in "compiled" numbering
     # lineidx = searchsortedfirst(linenos, line)
     # Can't use searchsortedfirst with missing
     lineidx = 0
@@ -339,4 +339,17 @@ function frameoffset(frame, offset)
         offset -= 1
     end
     return frame, offset
+end
+
+function linenumber_unexpanded(frame)
+    framecode, pc = frame.framecode, frame.pc
+    scope = framecode.scope::Method
+    codeloc = JuliaInterpreter.codelocation(framecode.src, pc)
+    codeloc == 0 && return nothing
+    lineinfo = framecode.src.linetable[codeloc]
+    while lineinfo.file != scope.file && codeloc > 0
+        codeloc -= 1
+        lineinfo = framecode.src.linetable[codeloc]
+    end
+    return JuliaInterpreter.getline(lineinfo)
 end
