@@ -28,10 +28,6 @@ notifications:
 install:
   - ps: iex ((new-object net.webclient).DownloadString("https://raw.githubusercontent.com/JuliaCI/Appveyor.jl/version-1/bin/install.ps1"))
 
-# HeaderREPLs isn't registered yet
-before_build:
-  - C:\julia\bin\julia -e "using Pkg; Pkg.add(Pkg.REPLMode.parse_package(\"https://github.com/timholy/HeaderREPLs.jl\"; add_or_develop=true))"
-
 build_script:
   - echo "%JL_BUILD_SCRIPT%"
   - C:\julia\bin\julia -e "%JL_BUILD_SCRIPT%"
