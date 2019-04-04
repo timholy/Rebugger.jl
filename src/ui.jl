@@ -447,7 +447,7 @@ function HeaderREPLs.setup_prompt(repl::HeaderREPL{InterpretHeader}, hascolor::B
     prompt.on_done = HeaderREPLs.respond(repl, julia_prompt) do str
         return DummyAST()
     end
-    return prompt, :rebug
+    return prompt, :interpret
 end
 
 function HeaderREPLs.append_keymaps!(keymaps, repl::HeaderREPL{InterpretHeader})
