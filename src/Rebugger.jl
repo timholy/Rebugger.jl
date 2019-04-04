@@ -54,7 +54,15 @@ function rebugrepl_init(main_repl, repl_inited)
 end
 
 function __init__()
-    schedule(Task(rebugrepl_init))
+    # schedule(Task(rebugrepl_init))
+    task = Task() do
+        try
+            rebugrepl_init()
+        catch exception
+            @error "Rebugger initialization failed" exception=(exception, catch_backtrace())
+        end
+    end
+    schedule(task)
 end
 
 include("precompile.jl")

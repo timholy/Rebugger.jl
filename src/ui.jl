@@ -496,8 +496,13 @@ function add_keybindings(main_repl; override::Bool=false, kwargs...)
         if haskey(keybindings, action)
             keybindings[action] = keybinding
         end
+        # PackageCompiler can cause these keys to be added twice (once during compilation and once by __init__),
+        # so put these in a try/catch (issue #62)
         if action == :interpret
-            LineEdit.add_nested_key!(julia_prompt.keymap_dict, keybinding, modeswitches[action], override=override)
+            try
+                LineEdit.add_nested_key!(julia_prompt.keymap_dict, keybinding, modeswitches[action], override=override)
+            catch
+            end
         else
             # We need Any here because "cannot convert REPL.LineEdit.PrefixHistoryPrompt to an object of type REPL.LineEdit.Prompt"
             prompts = Any[julia_prompt, rebug_prompt]
@@ -505,10 +510,16 @@ function add_keybindings(main_repl; override::Bool=false, kwargs...)
             for prompt in prompts
                 if keybinding isa Vector
                     for kb in keybinding
-                        LineEdit.add_nested_key!(prompt.keymap_dict, kb, modeswitches[action], override=override)
+                        try
+                            LineEdit.add_nested_key!(prompt.keymap_dict, kb, modeswitches[action], override=override)
+                        catch
+                        end
                     end
                 else
-                    LineEdit.add_nested_key!(prompt.keymap_dict, keybinding, modeswitches[action], override=override)
+                    try
+                        LineEdit.add_nested_key!(prompt.keymap_dict, keybinding, modeswitches[action], override=override)
+                    catch
+                    end
                 end
             end
         end
