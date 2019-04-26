@@ -5,8 +5,9 @@ using HeaderREPLs, REPL
 using Test
 
 function run_terminal_test(cmd, validation, commands)
-    TerminalRegressionTests.automated_test(joinpath(@__DIR__, validation), commands) do emuterm
-    # TerminalRegressionTests.create_automated_test(joinpath(@__DIR__, validation), commands) do emuterm
+    filepath = joinpath(@__DIR__, "ui", "v$(VERSION.major).$(VERSION.minor)", validation)
+    TerminalRegressionTests.automated_test(filepath, commands) do emuterm
+    # TerminalRegressionTests.create_automated_test(filepath, commands) do emuterm
         main_repl = REPL.LineEditREPL(emuterm, true)
         main_repl.interface = REPL.setup_interface(main_repl)
         main_repl.specialdisplay = REPL.REPLDisplay(main_repl)
@@ -29,9 +30,9 @@ EOT = "\x4"
 UP_ARROW = "\e[A"
 
 run_terminal_test("gcd(10, 20)",
-                  "ui/gcd.multiout",
+                  "gcd.multiout",
                   ['\n'])
 run_terminal_test("__gcdval__ = gcd(10, 20);",
-                  "ui/gcdsc.multiout",
+                  "gcdsc.multiout",
                   ['\n'])
 @test __gcdval__ == gcd(10, 20)
