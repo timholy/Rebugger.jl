@@ -296,28 +296,34 @@ function interpret(s)
                     elseif cmd == "\e[B"  # down arrow
                         hdr.leveloffset = max(0, hdr.leveloffset - 1)
                     end
-                elseif cmd == 'b'
-                    JuliaInterpreter.breakpoint!(frame.framecode, frame.pc)
-                elseif cmd == 'c'
-                    print(term, "enter condition: ")
-                    condstr = ""
-                    c = read(term, Char)
-                    while c != '\n' && c != '\r'
-                        print(term, c)
-                        condstr *= c
+                elseif cmd == 'b' || cmd == 'c'
+                    if cmd == 'b'
+                        cond = nothing
+                    else
+                        print(term, "enter condition: ")
+                        condstr = ""
                         c = read(term, Char)
+                        while c != '\n' && c != '\r'
+                            print(term, c)
+                            condstr *= c
+                            c = read(term, Char)
+                        end
+                        condex = Base.parse_input_line(condstr; filename="condition")
+                        cond = (JuliaInterpreter.moduleof(frame), condex)
                     end
-                    condex = Base.parse_input_line(condstr; filename="condition")
-                    JuliaInterpreter.breakpoint!(frame.framecode, frame.pc, (JuliaInterpreter.moduleof(frame), condex))
+                    ret = JuliaInterpreter.whereis(frame)
+                    if ret === nothing
+                        @warn "Failed to find location info at current statement"
+                    else
+                        file, line = ret
+                        JuliaInterpreter.breakpoint(file, line, cond)
+                    end
                 elseif cmd == 'r'
-                    thisline = JuliaInterpreter.linenumber(frame)
-                    breakpoint_action(remove, frame, thisline)
+                    breakpoint_action(remove, frame)
                 elseif cmd == 'd'
-                    thisline = JuliaInterpreter.linenumber(frame)
-                    breakpoint_action(disable, frame, thisline)
+                    breakpoint_action(disable, frame)
                 elseif cmd == 'e'
-                    thisline = JuliaInterpreter.linenumber(frame)
-                    breakpoint_action(enable, frame, thisline)
+                    breakpoint_action(enable, frame)
                 else
                     push!(msgs, cmd)
                 end
@@ -364,12 +370,16 @@ function coderange(src::CodeInfo, thisline)
 end
 coderange(framecode::FrameCode, thisline) = coderange(framecode.src, thisline)
 
-function breakpoint_action(f, frame, thisline)
-    framecode = frame.framecode
-    breakpoints = framecode.breakpoints
-    for i in coderange(framecode.src, thisline)
-        if isassigned(breakpoints, i) && (breakpoints[i].isactive || breakpoints[i].condition != JuliaInterpreter.falsecondition)
-            f(JuliaInterpreter.BreakpointRef(framecode, i))
+function breakpoint_action(f, frame)
+    ret = CodeTracking.whereis(frame)
+    if ret === nothing
+        @warn "Failed to find location info at current statement"
+    else
+        file, line = ret
+        for bp in JuliaInterpreter.breakpoints()
+            if bp isa JuliaInterpreter.BreakpointFileLocation && bp.path == file && bp.line == line
+                f(bp)
+            end
         end
     end
     return nothing
