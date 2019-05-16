@@ -5,7 +5,9 @@ using HeaderREPLs, REPL
 using Test
 
 function run_terminal_test(cmd, validation, commands)
-    filepath = joinpath(@__DIR__, "ui", "v$(VERSION.major).$(VERSION.minor)", validation)
+    dirpath = joinpath(@__DIR__, "ui", "v$(VERSION.major).$(VERSION.minor)")
+    isdir(dirpath) || mkpath(dirpath)
+    filepath = joinpath(dirpath, validation)
     TerminalRegressionTests.automated_test(filepath, commands) do emuterm
     # TerminalRegressionTests.create_automated_test(filepath, commands) do emuterm
         main_repl = REPL.LineEditREPL(emuterm, true)
