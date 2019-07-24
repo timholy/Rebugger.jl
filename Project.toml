@@ -1,6 +1,6 @@
 name = "Rebugger"
 uuid = "ee283ea6-eecd-56e3-beb3-83eb4d3c31e9"
-version = "0.3.2"
+version = "0.3.3"
 
 [deps]
 CodeTracking = "da1fd8a2-8d9e-5ec2-8556-3022fb5608a2"
@@ -12,7 +12,10 @@ Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
 UUIDs = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
 
 [compat]
+CodeTracking = "0.5"
 HeaderREPLs = "0.3"
+JuliaInterpreter = "0.7"
+Revise = "2.1.10"
 julia = "1"
 
 [extras]
