@@ -14,6 +14,8 @@ uuidextractor(str) = UUID(match(r"getstored\(\"([a-z0-9\-]+)\"\)", str).captures
 struct ErrorsOnShow end
 Base.show(io::IO, ::ErrorsOnShow) = throw(ArgumentError("no show"))
 
+const SPACE = VERSION < v"1.5.0-DEV.0" ? "" : " "  # maybe 1.4.0-DEV.537? most likely 1.4.0-DEV.604
+
 @testset "Rebugger" begin
     id = uuid1()
     @test uuidextractor("vars = getstored(\"$id\") and more stuff") == id
@@ -220,7 +222,7 @@ Base.show(io::IO, ::ErrorsOnShow) = throw(ArgumentError("no show"))
             @test cmd == """
             @eval Main.RebuggerTesting let (x, kw1, kwargs) = Main.Rebugger.getstored("$uuid")
             begin
-                kwvarargs2(x; kw1=kw1, kwargs...)
+                kwvarargs2(x; kw1$(SPACE)=$(SPACE)kw1, kwargs...)
             end
             end"""
             @test Rebugger.getstored(string(uuid)) == (1, 1, empty_kwvarargs)
@@ -232,7 +234,7 @@ Base.show(io::IO, ::ErrorsOnShow) = throw(ArgumentError("no show"))
             @test cmd == """
             @eval Main.RebuggerTesting let (x, kw1, kwargs) = Main.Rebugger.getstored("$uuid")
             begin
-                kwvarargs2(x; kw1=kw1, kwargs...)
+                kwvarargs2(x; kw1$(SPACE)=$(SPACE)kw1, kwargs...)
             end
             end"""
             @test Rebugger.getstored(string(uuid)) == (1, 1, pairs((passthrough=false,)))

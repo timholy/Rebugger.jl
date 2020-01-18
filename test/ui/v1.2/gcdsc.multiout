@@ -1,8 +1,7 @@
 ++++++++++++++++++++++++++++++++++++++++++++++++++
 |__gcdval__ = gcd(10, 20);
 |gcd(a::T, b::T) where T<:Union{Int128, Int16, Int32, Int64, Int8, UInt128, UInt1
-|6, UInt32, UInt64, UInt8} in Base at /home/tim/src/julia-master/base/intfuncs.jl
-|:31
+|6, UInt32, UInt64, UInt8} in Base at /home/tim/src/julia-1/base/intfuncs.jl:31
 |  a = 10
 |  b = 20
 |  T = Int64
@@ -14,8 +13,7 @@
 --------------------------------------------------
 |AAAAAAAAAAAAAAAAAAAAAAAAA
 |AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-|AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-|AAA
+|AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 |AAAAAAAA
 |AAAAAAAA
 |AAAAAAAAAAA
