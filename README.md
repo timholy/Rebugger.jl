@@ -3,6 +3,8 @@
 [![Build Status](https://travis-ci.org/timholy/Rebugger.jl.svg?branch=master)](https://travis-ci.org/timholy/Rebugger.jl)
 [![Build status](https://ci.appveyor.com/api/projects/status/e9t1wlyy995whchc?svg=true)](https://ci.appveyor.com/project/timholy/Rebugger-jl/branch/master)
 [![codecov.io](http://codecov.io/github/timholy/Rebugger.jl/coverage.svg?branch=master)](http://codecov.io/github/timholy/Rebugger.jl?branch=master)
+[![PkgEval][pkgeval-img]][pkgeval-url]
+
 
 Rebugger is an expression-level debugger for Julia.
 It has no ability to interact with or manipulate call stacks (see [Gallium](https://github.com/Keno/Gallium.jl)),
@@ -15,7 +17,7 @@ The name "Rebugger" has 3 meanings:
 - it supports repeated-execution debugging
 
 
-### JuliaCon 2018 Talk 
+### JuliaCon 2018 Talk
 
 While it's somewhat dated, you can learn about the "edit" interface in the following video:
 [![](https://img.youtube.com/vi/KuM0AGaN09s/0.jpg)](https://youtu.be/KuM0AGaN09s?t=515)
@@ -49,3 +51,6 @@ If your operating system assigns these keybindings to something else, you can [c
 
 Rebugger is in early stages of development, and users should currently expect bugs (please do [report](https://github.com/timholy/Rebugger.jl/issues) them).
 Neverthess it may be of net benefit for some users.
+
+[pkgeval-img]: https://juliaci.github.io/NanosoldierReports/pkgeval_badges/R/Rebugger.svg
+[pkgeval-url]: https://juliaci.github.io/NanosoldierReports/pkgeval_badges/report.html
