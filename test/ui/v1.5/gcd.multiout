@@ -1,5 +1,5 @@
 ++++++++++++++++++++++++++++++++++++++++++++++++++
-|__gcdval__ = my_gcd(10, 20);
+|my_gcd(10, 20)
 |my_gcd(a::T, b::T) where T<:Union{Int128, Int16, Int32, Int64, Int8, UInt128, UI
 |nt16, UInt32, UInt64, UInt8} in Main at /home/tim/.julia/dev/Rebugger/test/my_gc
 |d.jl:4
@@ -12,7 +12,7 @@
 |  6      za = trailing_zeros(a)
 |
 --------------------------------------------------
-|AAAAAAAAAAAAAAAAAAAAAAAAAAAA
+|AAAAAAAAAAAAAA
 |AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 |AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 |AAAAAA
