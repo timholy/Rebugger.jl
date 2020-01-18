@@ -40,6 +40,7 @@ function expression_lines(method::Method)
         methstrings = split(chomp(src), '\n')
         return Vector(range(Int(line1), length=length(methstrings))), line1, methstrings
     end
+    def = unwrap(def)
     # We'll use the file in LineNumberNodes to make sure line numbers refer to the "outer"
     # method (and does not get confused by macros etc). Because of symlinks and non-normalized paths,
     # it's more reliable to grab the first LNN for the template filename than to use method.file.
