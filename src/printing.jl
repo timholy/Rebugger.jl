@@ -8,6 +8,8 @@ end
 LineNumberIO(io::IO, line::Integer, file::Symbol) = LineNumberIO(io, Union{Missing,Int}[line], file)
 LineNumberIO(io::IO, line::Integer, file::AbstractString) = LineNumberIO(io, line, Symbol(file))
 
+const LNIO = Union{LineNumberIO, IOContext{LineNumberIO}}
+
 # Instead of printing the source line number to `io.io`, associate it with the
 # corresponding line of the printout
 function Base.show_linenumber(io::LineNumberIO, line, file)
@@ -25,8 +27,9 @@ function Base.show_linenumber(io::LineNumberIO, line, file)
     end
     return nothing
 end
-Base.show_linenumber(io::LineNumberIO, line, ::Nothing) = nothing
-Base.show_linenumber(io::LineNumberIO, line) = nothing
+Base.show_linenumber(io::LNIO, line, file) = Base.show_linenumber(io.io, line, file)
+Base.show_linenumber(io::LNIO, line, ::Nothing) = nothing
+Base.show_linenumber(io::LNIO, line) = nothing
 
 # TODO? intercept `\n` here and break the result up into lines at writing time?
 Base.write(io::LineNumberIO, x::UInt8) = write(io.io, x)
