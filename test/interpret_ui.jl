@@ -25,16 +25,16 @@ function run_terminal_test(cmd, validation, commands)
     end
 end
 
-Revise.track(Base)  # just to get Info printing out of the way
+includet("my_gcd.jl")
 
 CTRL_C = "\x3"
 EOT = "\x4"
 UP_ARROW = "\e[A"
 
-run_terminal_test("gcd(10, 20)",
+run_terminal_test("my_gcd(10, 20)",
                   "gcd.multiout",
                   ['\n'])
-run_terminal_test("__gcdval__ = gcd(10, 20);",
+run_terminal_test("__gcdval__ = my_gcd(10, 20);",
                   "gcdsc.multiout",
                   ['\n'])
 @test __gcdval__ == gcd(10, 20)

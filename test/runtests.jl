@@ -1,5 +1,6 @@
 using Rebugger, Test
 
+@info "These tests manipulate the console. Wait until you see \"Done\""
 include("edit.jl")
 include("interpret.jl")
 if Sys.isunix() && VERSION >= v"1.1.0"
@@ -7,4 +8,4 @@ if Sys.isunix() && VERSION >= v"1.1.0"
 else
     @warn "Skipping UI tests"
 end
-println("done")  # there is so much terminal manipulation, best to let the user know
+println("Done")

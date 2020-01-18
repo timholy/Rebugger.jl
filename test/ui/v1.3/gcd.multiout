@@ -1,21 +1,21 @@
 ++++++++++++++++++++++++++++++++++++++++++++++++++
-|gcd(10, 20)
-|gcd(a::T, b::T) where T<:Union{Int128, Int16, Int32, Int64, Int8, UInt128, UInt1
-|6, UInt32, UInt64, UInt8} in Base at /home/tim/src/julia-master/base/intfuncs.jl
-|:31
+|my_gcd(10, 20)
+|my_gcd(a::T, b::T) where T<:Union{Int128, Int16, Int32, Int64, Int8, UInt128, UI
+|nt16, UInt32, UInt64, UInt8} in Main at /home/tim/.julia/dev/Rebugger/test/my_gc
+|d.jl:4
 |  a = 10
 |  b = 20
 |  T = Int64
-| 30  function gcd(a::T, b::T) where T <: Union{Int8, UInt8, Int16, UInt16, Int…
-| 31      a == 0 && return abs(b)
-| 32      b == 0 && return abs(a)
-| 33      za = trailing_zeros(a)
+|  3  function my_gcd(a::T, b::T) where T <: Union{Int8, UInt8, Int16, UInt16, …
+|  4      a == 0 && return abs(b)
+|  5      b == 0 && return abs(a)
+|  6      za = trailing_zeros(a)
 |
 --------------------------------------------------
-|AAAAAAAAAAA
+|AAAAAAAAAAAAAA
 |AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 |AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-|AAA
+|AAAAAA
 |AAAAAAAA
 |AAAAAAAA
 |AAAAAAAAAAA
