@@ -7,7 +7,7 @@
 
 
 Rebugger is an expression-level debugger for Julia.
-It has no ability to interact with or manipulate call stacks (see [Gallium](https://github.com/Keno/Gallium.jl)),
+It has no ability to interact with or manipulate call stacks (see [Debugger](https://github.com/JuliaDebug/Debugger.jl) or the debugger built into vscode),
 but it can trace execution via the manipulation of Julia expressions.
 
 The name "Rebugger" has 3 meanings:
@@ -16,6 +16,10 @@ The name "Rebugger" has 3 meanings:
 - it is the [Revise](https://github.com/timholy/Revise.jl)-based debugger
 - it supports repeated-execution debugging
 
+### Current status
+
+Currently broken and unmaintained due to the author having too many other packages to maintain. However, the functionality and general concept is still quite attractive.
+For anyone interested in taking over maintenance, see [issue #90](https://github.com/timholy/Rebugger.jl/issues/90) for more information.
 
 ### JuliaCon 2018 Talk
 
